@@ -1,0 +1,14 @@
+node_modules
+data
+.env
+.git
+.gitignore
+historial.txt
+proceso para migración.txt
+Manual de usuario del software Lykos chat.txt
+test_login.js
+README.md
+LYKOS_CHAT.md
+Dockerfile
+docker-compose.yml
+.dockerignore

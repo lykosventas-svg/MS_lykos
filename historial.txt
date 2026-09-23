@@ -1,0 +1,487 @@
+================================================================================
+                    LYKOS CHAT - HISTORIAL DE DESARROLLO
+================================================================================
+Fecha: 10 de septiembre de 2026
+Proyecto: Chatbot WhatsApp Business Cloud API con IA opcional
+Desarrollador: Asistente IA (GLM-5.2) + Usuario (Gustavo)
+
+================================================================================
+SECCIÓN 1: PROMPTS Y RESULTADOS SINDETIZADOS
+================================================================================
+
+----------------------------------------------------------------------------
+PROMPT 1 (Inicial - Especificación completa)
+----------------------------------------------------------------------------
+El usuario solicitó construir un sistema completo de chatbot para WhatsApp
+Business Cloud API con:
+- 3 modos configurables: BOT (flujos), IA (LLM), HUMANO (agentes)
+- Panel de administración web
+- Stack: Node.js + Express + SQLite + React/HTML+Tailwind+Alpine.js + Socket.io
+- 6 módulos: Configuración, Webhook, Orquestador, Flujos, Handoff, Contactos/Métricas
+- Cliente IA genérico OpenAI-compatible (baseURL configurable)
+- Cifrado AES de credenciales, JWT con roles, rate limiting
+- Instrucción de esperar confirmación entre módulos
+
+RESULTADO:
+- Esquema de base de datos creado (10 tablas con relaciones)
+- Estructura de carpetas completa (backend/src + public)
+- Módulo 1 (Panel de configuración) implementado y verificado:
+  - Pestaña WhatsApp: credenciales, App Secret, probar conexión
+  - Pestaña IA: interruptor global, modos, parámetros, probar conexión
+  - Pestaña Bot: flujos, palabras clave, menús
+- Cifrado AES-256-GCM verificado (tokens no aparecen en plaintext en BD)
+- Nota técnica: Node v24 no tiene prebuilds de better-sqlite3, se usó
+  el módulo integrado node:sqlite (API compatible, sin compilación nativa)
+
+----------------------------------------------------------------------------
+PROMPT 2
+----------------------------------------------------------------------------
+"pregunta antes de continuar con le demas dime ¿cuales son las credenciales
+para ingresar al software?"
+
+RESULTADO:
+- Usuario: admin
+- Contraseña: admin123
+- Rol: admin
+(Configurables en .env antes del seed)
+
+----------------------------------------------------------------------------
+PROMPT 3
+----------------------------------------------------------------------------
+"vale confirmo, para que continues con lo siguiente"
+
+RESULTADO:
+Se construyeron los módulos 2 al 6 + README:
+
+Módulo 2 (Webhook):
+- GET /webhook: verificación de Meta (hub.challenge + verify token)
+- POST /webhook: validación firma X-Hub-Signature-256 (HMAC-SHA256)
+- Deduplicación por wam_id, parseo de text/interactive/media/location/status
+- Respuesta 200 inmediata, procesamiento en segundo plano
+- Verificado: firma válida→200, firma inválida→403, dedupe OK
+
+Módulo 3 (Orquestador):
+- Decide modo: humano (no responde) / IA (LLM) / bot (flujos)
+- IA de respaldo cuando bot no entiende
+- Límite de mensajes IA por día → vuelve a bot + handoff
+- Interpreta [ESCALAR_HUMANO] → activa handoff
+- Si IA falla → fallback amigable (nunca deja sin respuesta)
+
+Módulo 4 (Flujos del Bot):
+- Bienvenida + menús con botones interactivos nativos
+- Árbol de conversación de 2 niveles
+- Palabras clave con respuestas
+- Normalización de acentos
+- 8 tests de matching OK
+
+Módulo 5 (Handoff + Agentes):
+- Activación por botón, palabra clave, o etiqueta IA
+- Bandeja de entrada con filtros (todas/bot/humano/IA/mías)
+- Chat estilo WhatsApp con burbujas, estados de envío
+- Socket.io para tiempo real
+- Botones: Tomar, Devolver al bot, Activar IA
+- Indicador ventana 24h + envío de plantilla
+
+Módulo 6 (Contactos/Métricas/Seguridad):
+- CRUD contactos con etiquetas y notas
+- Dashboard: conversaciones, mensajes, % por modo, tokens IA
+- Roles admin/agente con JWT
+- Rate limiting en login
+
+----------------------------------------------------------------------------
+PROMPT 4
+----------------------------------------------------------------------------
+"mejora la interfaz de usuario las opciones como:whatsapp,inteligencia
+artificial, flujos de bot etc, deben ir en un panel que se econtrara en la
+parte izquierda en formade lista que tendra la opción de abrir y ocultarse
+atravez de un icono ademas quiero que para la usuario quiero que este haya
+un crud para eliminar , modificar etc los usuario por ultimo e importante
+es que todo lo lo referente a lo abnim o las fucniones atribuidas al rol
+de abmini solo sera visibles para la usuario que tenga dicho rol para el
+otro rol directamente no se mostrara es funciones"
+
+RESULTADO:
+- Sidebar lateral colapsable con icono hamburguesa
+- Navegación por secciones: "Configuración" y "Operación"
+- CRUD completo de usuarios (crear, editar, eliminar, activar/desactivar)
+- Visibilidad por rol: admin ve todo, agente solo ve Agentes y Contactos
+- Backend refuerza con requireAdmin (403 a agentes en config/usuarios/métricas)
+
+----------------------------------------------------------------------------
+PROMPT 5
+----------------------------------------------------------------------------
+"intenta otra vez"
+
+RESULTADO:
+- Se completaron los cambios del Prompt 4
+- Verificado: agente bloqueado de config (403), métricas (403), usuarios (403)
+- Agente solo accede a conversaciones y contactos
+
+----------------------------------------------------------------------------
+PROMPT 6
+----------------------------------------------------------------------------
+"los iconos que se presentan el panel izquierdo son muy grandes reduce su
+tamñano para que se vea estico ahora las opciones para el crud de para la
+opcion usuarios deben desplegar atravez de un botón que diga opciones es
+decir este botón al hacer clic en este se desplegara la opciones del crud
+(editar, desactivar y eliminar) la opción clave debe estar adentro de la
+opción editar. ahora para la opción de crear usuario debe esta debe aber
+un botón en la parte de arriba de la tabla que diga 'Crear usuario' que al
+dar clic desplegara un modal donde apararescan los para crear el usuario
+ademas el color princiapl del software de ser color azul marino(actualemnte
+veo que utilizas el color verde,cambialo) este color tambien puedes aplicar
+en el color de fondo de lo bostones de pero con un tono diferente"
+
+RESULTADO:
+- Iconos reducidos de w-5 h-5 (20px) a w-4 h-4 (16px)
+- Botón "Opciones ▾" con menú desplegable (Editar, Desactivar, Eliminar)
+- Campo "Nueva contraseña (opcional)" dentro del modal Editar
+- Botón "+ Crear usuario" arriba de tabla → abre modal
+- Color principal cambiado de verde a azul marino (#163d6e)
+- Botones: primary (brand-600), secondary (brand-500), ghost (brand-100)
+
+----------------------------------------------------------------------------
+PROMPT 7
+----------------------------------------------------------------------------
+"en el crud de usuario al dearle clic a la opción 'opciones' no se
+desplegan las opciones, este botón debe tener un color de fondo azul el
+botón de crear usurio tambien debe tener un color azul basicamente todos
+los botónes van a tener de fondo un color azul a expción a opcines como
+'eliminar' este tendra un color rojo"
+
+RESULTADO:
+- Bug del menú desplegable arreglado con @click.stop (evitaba que
+  @click.outside se disparara inmediatamente con el mismo clic)
+- Todos los botones con fondo azul (btn-ghost cambió de gris a brand-100)
+- Opción "Eliminar" con fondo rojo (bg-red-600)
+- Clase btn-danger añadida para botones de eliminación
+
+----------------------------------------------------------------------------
+PROMPT 8
+----------------------------------------------------------------------------
+"requiero que en la apartado o el modulo de 'agentes', los mensajes
+inciados por los clientes se cree un registro de conversación con este
+cliente automaticamente y en paralelo se cree un registro de contacto en
+el modulo o apartado 'contactos' con los datos del cliente"
+
+RESULTADO:
+- Se verificó que esta funcionalidad YA ESTABA implementada en
+  webhookService.js (líneas 174-178):
+  1. contactoModel.upsert() → crea/actualiza contacto con wa_id + nombre
+  2. conversacionModel.getOrCreate() → crea conversación vinculada
+- Prueba end-to-end con cliente nuevo "Carlos Ramirez":
+  - Contacto creado: id=5, wa_id=5215511112222
+  - Conversación creada: id=5, modo=bot, estado=activa
+  - Apareció en ambos módulos (Contactos y Agentes)
+
+----------------------------------------------------------------------------
+PROMPT 9
+----------------------------------------------------------------------------
+"acabo de enviar un mensaje desde mi whasapp personal el cual mi numero
+es 2463118068 pero no veo reflejado el mensaje o registro en el apartado
+'agentes' puedes revisar donde esta el error"
+
+RESULTADO (ver SECCIÓN 2 - Problemas resueltos):
+- Se descubrió que Meta SÍ enviaba el mensaje pero se rechazaba por
+  firma X-Hub-Signature-256 inválida (App Secret incorrecto)
+- Se limpió el App Secret para permitir el paso de mensajes
+- Se descubrió que ngrok no estaba corriendo
+- Se inició ngrok y se obtuvo URL: https://grain-borax-turban.ngrok-free.dev
+- Se verificó webhook accesible desde internet
+
+----------------------------------------------------------------------------
+PROMPT 10
+----------------------------------------------------------------------------
+"listo ya ingrese ambos valores (callback URL y Verify Token) y le di
+verify and save ademas me suscribe al campo messages"
+
+RESULTADO:
+- Se monitoreó por 60s → no llegaron mensajes
+- Se revisó ngrok: solo 1 petición GET (verificación), 0 POST
+- Se probó conexión WhatsApp: OK (Business: +52 1 55 1883 3393, Lykos SI Consulting)
+- Se envió mensaje de prueba FROM business TO usuario → llegó OK
+- Se monitoreó respuesta 3 min → no llegó
+
+----------------------------------------------------------------------------
+PROMPT 11
+----------------------------------------------------------------------------
+"acabo de verificar y mi app esta en modo producción puedes monitorear
+nuevamente"
+
+RESULTADO (ver SECCIÓN 2 - Problemas resueltos):
+- Se monitoreó 3 min → no llegó
+- Se revisó ngrok: solo GETs de verificación, 0 POSTs de Meta
+- Se probó POST a través de ngrok → funcionó (ngrok no bloquea POSTs)
+- Se consultó Graph API: la app NO estaba suscrita a webhook events
+- Se suscribió vía API: POST /{waba_id}/subscribed_apps → success: True
+- Se envió mensaje al usuario → respondió "Recibido"
+- ¡MENSAJE RECIBIDO! Contacto: Gustavo, wa_id: 5212463118068
+- Contacto y conversación creados automáticamente en los módulos
+
+
+================================================================================
+SECCIÓN 2: PROBLEMAS ENCONTRADOS Y RESUELTOS
+================================================================================
+
+----------------------------------------------------------------------------
+PROBLEMA 1: better-sqlite3 no compila en Node v24
+----------------------------------------------------------------------------
+SÍNTOMA: npm install falla al compilar better-sqlite3 (no hay prebuilds
+         para Node v24.18.0)
+CAUSA:   Node v24 es muy nuevo, better-sqlite3 no tiene binarios precompilados
+SOLUCIÓN: Se usó el módulo integrado node:sqlite (disponible en Node 22+)
+         - API compatible (prepare/run/get/all)
+         - Sin compilación nativa
+         - Única diferencia: db.pragma() → db.exec('PRAGMA ...')
+IMPACTO: Se actualizó database.js y package.json (engines >=22)
+
+----------------------------------------------------------------------------
+PROBLEMA 2: require('../models/contactos') no encontrado
+----------------------------------------------------------------------------
+SÍNTOMA: El servidor crashea al arrancar: "Cannot find module
+         '../models/contactos'"
+CAUSA:   El archivo se llama contacto.js (singular) pero se requirió
+         como contactos (plural) en handoffService.js
+SOLUCIÓN: Se corrigió el require a '../models/contacto'
+
+----------------------------------------------------------------------------
+PROBLEMA 3: Menú "Opciones" no se despliega
+----------------------------------------------------------------------------
+SÍNTOMA: Al hacer clic en "Opciones ▾" el menú no aparece
+CAUSA:   @click.outside en el dropdown se disparaba inmediatamente con el
+         mismo evento de clic del botón (el clic llega al document level
+         y cierra el menú que apenas se abrió)
+SOLUCIÓN: Se añadió @click.stop al botón para evitar que el evento
+         propague al document level donde @click.outside escucha
+
+----------------------------------------------------------------------------
+PROBLEMA 4: Mensaje de WhatsApp no se refleja en el panel
+----------------------------------------------------------------------------
+SÍNTOMA: El usuario envía un mensaje desde su WhatsApp personal pero no
+         aparece en el módulo "Agentes"
+DIAGNÓSTICO EN CADENA:
+
+  4a. Firma X-Hub-Signature-256 inválida
+      ─────────────────────────────────
+      SÍNTOMA: Log: "Webhook: firma X-Hub-Signature-256 invalida"
+      CAUSA:   El App Secret guardado en BD era "test-secret-999" (de
+               pruebas de desarrollo), no el real de la app de Meta
+      SOLUCIÓN: Se limpió el App Secret (NULL) para desactivar la
+               verificación de firma temporalmente
+
+  4b. ngrok no estaba corriendo
+      ─────────────────────────────────
+      SÍNTOMA: Meta no puede alcanzar el servidor (no hay URL pública)
+      CAUSA:   ngrok no estaba activo; public_url en BD era un placeholder
+               ("https://demo.ngrok-free.app")
+      SOLUCIÓN: Se inició ngrok http 3000
+               URL obtenida: https://grain-borax-turban.ngrok-free.dev
+               Se actualizó la BD y se verificó el webhook desde internet
+
+  4c. La app no estaba suscrita a webhook events
+      ─────────────────────────────────
+      SÍNTOMA: Webhook verificado (Meta envió GETs de verificación y
+               recibió 200) pero NO enviaba POSTs con mensajes
+      CAUSA:   Aunque el usuario hizo "Verify and Save" en Meta, la app
+               no estaba suscrita al campo "messages" a nivel de API
+               (GET /{waba_id}/subscribed_apps devolvió vacío)
+      SOLUCIÓN: Se suscribió programáticamente:
+               POST /{waba_id}/subscribed_apps
+               Body: {"subscribed_fields":["messages"]}
+               Resultado: success: True
+
+  RESULTADO FINAL: Tras la suscripción, se envió un mensaje al usuario,
+  este respondió "Recibido", y el mensaje llegó al webhook:
+  - Contacto creado: Gustavo (wa_id: 5212463118068)
+  - Conversación creada: id=6, modo=bot
+  - Bot respondió automáticamente con mensaje de bienvenida
+
+
+================================================================================
+SECCIÓN 3: DIAGRAMA DEL FLUJO Y FUNCIONAMIENTO
+================================================================================
+
+                              ┌─────────────┐
+                              │   CLIENTE   │
+                              │  (WhatsApp  │
+                              │   Personal) │
+                              └──────┬──────┘
+                                     │
+                                     │ 1. Envía mensaje
+                                     │    al número de
+                                     │    WhatsApp Business
+                                     ▼
+              ┌────────────────────────────────────────┐
+              │         META (WhatsApp Cloud API)        │
+              │                                        │
+              │  - Recibe el mensaje                    │
+              │  - Genera evento de webhook             │
+              │  - Envía POST al webhook con:           │
+              │    * mensaje, contacto, metadata        │
+              │    * firma X-Hub-Signature-256          │
+              └───────────────────┬────────────────────┘
+                                  │
+                                  │ 2. POST /webhook
+                                  │    (con payload JSON)
+                                  ▼
+              ┌────────────────────────────────────────┐
+              │           NGROK (Túnel)                 │
+              │                                        │
+              │  URL pública: https://xxx.ngrok.dev     │
+              │  Reenvía la petición a localhost:3000   │
+              └───────────────────┬────────────────────┘
+                                  │
+                                  │ 3. Reenvía a servidor local
+                                  ▼
+    ┌─────────────────────────────────────────────────────────┐
+    │                  SERVIDOR LYKOS CHAT                      │
+    │                   (Node.js + Express)                     │
+    │                                                           │
+    │  ┌─────────────────────────────────────────────────┐     │
+    │  │            RUTA: POST /webhook                    │     │
+    │  │                                                   │     │
+    │  │  1. Validar firma X-Hub-Signature-256             │     │
+    │  │     (HMAC-SHA256 con App Secret)                  │     │
+    │  │                                                   │     │
+    │  │  2. Responder 200 inmediatamente a Meta            │     │
+    │  │     (requisito obligatorio)                        │     │
+    │  │                                                   │     │
+    │  │  3. Procesar en segundo plano (setImmediate)       │     │
+    │  └──────────────────┬──────────────────────────────┘     │
+    │                     │                                     │
+    │                     ▼                                     │
+    │  ┌─────────────────────────────────────────────────┐     │
+    │  │         webhookService.processIncoming()          │     │
+    │  │                                                   │     │
+    │  │  a. Deduplicar por wam_id                          │     │
+    │  │     (Meta puede reenviar el mismo evento)          │     │
+    │  │                                                   │     │
+    │  │  b. CREAR/ACTUALIZAR CONTACTO                     │     │
+    │  │     contactoModel.upsert(wa_id, nombre)            │     │
+    │  │     → Tabla: contactos                             │     │
+    │  │                                                   │     │
+    │  │  c. CREAR/OBTENER CONVERSACIÓN                    │     │
+    │  │     conversacionModel.getOrCreate(contacto_id)     │     │
+    │  │     → Tabla: conversaciones                        │     │
+    │  │                                                   │     │
+    │  │  d. GUARDAR MENSAJE ENTRANTE                      │     │
+    │  │     mensajeModel.insert(direccion='in')            │     │
+    │  │     → Tabla: mensajes                              │     │
+    │  │                                                   │     │
+    │  │  e. DELEGAR AL ORQUESTADOR                         │     │
+    │  └──────────────────┬──────────────────────────────┘     │
+    │                     │                                     │
+    │                     ▼                                     │
+    │  ┌─────────────────────────────────────────────────┐     │
+    │  │         ORQUESTADOR (decisión de modo)            │     │
+    │  │                                                   │     │
+    │  │  ¿Modo de la conversación?                        │     │
+    │  │                                                   │     │
+    │  │  ┌─── HUMANO ───┐                                 │     │
+    │  │  │ No responder  │ → Notificar agente via Socket  │     │
+    │  │  │ automático    │   .io (toast + sonido)         │     │
+    │  │  └───────────────┘                                 │     │
+    │  │                                                   │     │
+    │  │  ┌─── IA ────────┐                                 │     │
+    │  │  │ Llamar al LLM  │ → iaService.generateResponse()│     │
+    │  │  │ con historial  │   (últimos 10 mensajes +      │     │
+    │  │  │ + system prompt│    system prompt + instrucción │     │
+    │  │  │                │    fija [ESCALAR_HUMANO])      │     │
+    │  │  │                │                                │     │
+    │  │  │ Si devuelve    │ → handoffService.activar()     │     │
+    │  │  │ [ESCALAR_      │   (cambia a modo humano)       │     │
+    │  │  │  HUMANO]       │                                │     │
+    │  │  │                │                                │     │
+    │  │  │ Si falla       │ → Fallback amigable            │     │
+    │  │  └────────────────┘                                │     │
+    │  │                                                   │     │
+    │  │  ┌─── BOT ───────┐                                 │     │
+    │  │  │ 1. Buscar en   │ → flujosService.procesar()     │     │
+    │  │  │    flujos/     │   (palabras clave, menús,      │     │
+    │  │  │    menús/      │    árbol de conversación)       │     │
+    │  │  │    keywords    │                                │     │
+    │  │  │                │                                │     │
+    │  │  │ 2. Si coincide │ → Enviar respuesta             │     │
+    │  │  │                │                                │     │
+    │  │  │ 3. Si NO       │ → ¿IA habilitada en modo       │     │
+    │  │  │    coincide    │   "respaldo"?                   │     │
+    │  │  │                │   SÍ → llamar IA               │     │
+    │  │  │                │   NO → mensaje fallback con     │     │
+    │  │  │                │        botones (reintentar /    │     │
+    │  │  │                │        hablar con asesor)       │     │
+    │  │  └────────────────┘                                │     │
+    │  └──────────────────┬──────────────────────────────┘     │
+    │                     │                                     │
+    │                     ▼                                     │
+    │  ┌─────────────────────────────────────────────────┐     │
+    │  │       ENVIAR RESPUESTA A WHATSAPP                 │     │
+    │  │                                                   │     │
+    │  │  whatsappService.sendText() o sendButtons()       │     │
+    │  │  POST /{phone_number_id}/messages                 │     │
+    │  │  → Meta entrega el mensaje al cliente              │     │
+    │  │                                                   │     │
+    │  │  Guardar mensaje saliente en BD (direccion='out')  │     │
+    │  └─────────────────────────────────────────────────┘     │
+    │                                                           │
+    │  ┌─────────────────────────────────────────────────┐     │
+    │  │              SOCKET.IO (tiempo real)              │     │
+    │  │                                                   │     │
+    │  │  Emite eventos al panel de agentes:               │     │
+    │  │  - mensaje_recibido (nuevo mensaje de cliente)    │     │
+    │  │  - mensaje_enviado (respuesta del bot/IA/agente)  │     │
+    │  │  - handoff_solicitado (escalar a humano)          │     │
+    │  └─────────────────────────────────────────────────┘     │
+    └─────────────────────────────────────────────────────────┘
+                                  │
+                                  │ 4. Panel web (agentes)
+                                  ▼
+              ┌────────────────────────────────────────┐
+              │         PANEL WEB (Frontend)             │
+              │   HTML + Tailwind + Alpine.js            │
+              │                                        │
+              │  ┌──────────┐  ┌──────────────────┐    │
+              │  │ SIDEBAR  │  │   CONTENIDO       │    │
+              │  │ (izq.)   │  │                   │    │
+              │  │          │  │  Agentes:         │    │
+              │  │ WhatsApp │  │   Bandeja + Chat  │    │
+              │  │ IA       │  │                   │    │
+              │  │ Bot      │  │  Contactos:       │    │
+              │  │ Agentes  │  │   CRUD + etiquetas│    │
+              │  │ Contactos│  │                   │    │
+              │  │ Metricas │  │  Metricas:        │    │
+              │  │ Usuarios │  │   Dashboard       │    │
+              │  └──────────┘  └──────────────────┘    │
+              └────────────────────────────────────────┘
+
+
+FLUJO RESUMIDO (una línea):
+
+  Cliente → Meta → ngrok → Webhook → Dedupe → Contacto+Conversación
+  → Guardar mensaje → Orquestador (Bot/IA/Humano) → Respuesta
+  → Meta → Cliente
+  → Socket.io → Panel de agentes (tiempo real)
+
+
+BASE DE DATOS (tablas involucradas en el flujo):
+
+  ┌─────────────┐     ┌──────────────────┐     ┌───────────┐
+  │  contactos  │────▶│ conversaciones   │────▶│ mensajes  │
+  │             │ 1:n │                  │ 1:n │           │
+  │ id          │     │ id               │     │ id        │
+  │ wa_id       │     │ contacto_id (FK) │     │ conv_id   │
+  │ nombre      │     │ modo             │     │ direccion │
+  │ etiquetas   │     │ estado           │     │ tipo      │
+  │ notas       │     │ agente_id        │     │ contenido │
+  └─────────────┘     │ paso_flujo       │     │ origen    │
+                      └──────────────────┘     │ status    │
+                                               └───────────┘
+
+  ┌──────────────┐   ┌────────────┐   ┌─────────────┐
+  │config_whatsapp│   │ config_ia  │   │  uso_ia     │
+  │ (cifrado AES) │   │ (cifrado)  │   │ (tokens)    │
+  └──────────────┘   └────────────┘   └─────────────┘
+
+
+================================================================================
+                              FIN DEL DOCUMENTO
+================================================================================

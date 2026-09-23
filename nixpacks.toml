@@ -1,0 +1,20 @@
+# ============================================================
+#  Nixpacks config para Dokploy (Node.js deployment)
+#; Asegura Node.js 22 (obligatorio para node:sqlite) y crea
+#  los directorios persistentes antes de arrancar.
+# ============================================================
+
+[phases.setup]
+nixPkgs = ['nodejs_22']
+aptPkgs = []
+
+[phases.install]
+cmds = ['npm ci --omit=dev']
+
+[phases.build]
+cmds = [
+  'mkdir -p data public/uploads'
+]
+
+[start]
+cmd = 'node --experimental-sqlite backend/src/server.js'

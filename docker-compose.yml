@@ -1,0 +1,33 @@
+version: "3.9"
+
+services:
+  lykos-chat:
+    build: .
+    container_name: lykos-chat
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - PUBLIC_URL=${PUBLIC_URL:-http://localhost:3000}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+      - DB_PATH=/app/data/lykos.db
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET es obligatorio en .env}
+      - JWT_EXPIRES_IN=12h
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY es obligatorio en .env (64 hex chars)}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD es obligatorio en .env}
+      - SESSION_IDLE_TIMEOUT_MINUTES=${SESSION_IDLE_TIMEOUT_MINUTES:-30}
+      - RATE_LIMIT_WINDOW_MS=900000
+      - RATE_LIMIT_MAX=100
+      - WEBHOOK_VERIFY_TOKEN=${WEBHOOK_VERIFY_TOKEN:-lykos_verify_token_inicial}
+    volumes:
+      - ./data:/app/data
+      - ./public/uploads:/app/public/uploads
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/auth/profile',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3

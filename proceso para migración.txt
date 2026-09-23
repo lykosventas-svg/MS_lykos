@@ -1,0 +1,409 @@
+================================================================================
+              LYKOS CHAT - PROCESO DE MIGRACIÓN: LOCAL → HOSTING
+================================================================================
+Fecha: 10 de septiembre de 2026
+Objetivo: Llevar el software desde el entorno local (con ngrok) a un
+          proveedor de hosting en internet.
+
+================================================================================
+SECCIÓN 1: REQUISITOS DEL HOSTING
+================================================================================
+
+1.1 Servidor necesario
+─────────────────────
+- Node.js >= 22 (obligatorio: usa el módulo integrado node:sqlite)
+- RAM mínima: 512 MB (recomendado 1 GB)
+- Disco: 1 GB mínimo (la BD SQLite crece con el uso)
+- Acceso SSH (recomendado) o panel de control con terminal
+- Puerto abierto para el servidor (ej. 3000) o posibilidad de usar Nginx
+
+1.2 Tipos de hosting compatibles
+───────────────────────────────
+- VPS (Virtual Private Server): RECOMENDADO (DigitalOcean, Linode, Vultr, AWS EC2)
+- Cloud Server (Google Cloud, Azure, Huawei Cloud)
+- Hosting compartido: NO recomendado (suele limitar Node.js y procesos persistentes)
+- Docker en cualquier proveedor que soporte contenedores
+
+1.3 Dominio y SSL
+────────────────
+- Un dominio o subdominio apuntando al servidor (ej: chat.tudominio.com)
+- Certificado SSL (HTTPS obligatorio: Meta requiere URL https para el webhook)
+- Se puede obtener gratis con Let's Encrypt (certbot)
+
+
+================================================================================
+SECCIÓN 2: ARCHIVOS Y PARÁMETROS A MODIFICAR
+================================================================================
+
+----------------------------------------------------------------------------
+2.1 ARCHIVO: .env  (CRÍTICO)
+----------------------------------------------------------------------------
+
+Este es el archivo más importante. En local tienes un .env de desarrollo.
+En producción debes crear uno nuevo con valores seguros.
+
+PARÁMETROS A CAMBIAR:
+
+  PORT=3000
+  → Mantener 3000 si usas Nginx, o cambiar al puerto asignado por el hosting
+
+  PUBLIC_URL=https://demo.ngrok-free.app
+  → CAMBIAR a tu dominio real: https://chat.tudominio.com
+  → Quitar la URL de ngrok completamente
+
+  DB_PATH=./data/lykos.db
+  → Mantener, o cambiar a una ruta absoluta fuera del directorio web:
+    /var/lib/lykos-chat/lykos.db (más seguro)
+
+  JWT_SECRET=lykos-dev-secret-cambiar-en-produccion-2026
+  → CAMBIAR por una cadena aleatoria larga y única:
+    node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+
+  ENCRYPTION_KEY= (64 caracteres hex)
+  → CAMBIAR por una clave nueva y segura:
+    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  → ADVERTENCIA: Si cambias esta clave, las credenciales cifradas en la BD
+    (token de WhatsApp, API key de IA, App Secret) NO se podrán descifrar.
+    Deberás reingresarlas desde el panel después de migrar.
+
+  ADMIN_USERNAME=admin
+  ADMIN_PASSWORD=admin123
+  → CAMBIAR por credenciales seguras de producción
+  → Solo se usan en el primer `npm run seed`. Después se gestionan desde el panel.
+
+  WEBHOOK_VERIFY_TOKEN=lykos_verify_token_inicial
+  → Se puede mantener; el panel permite regenerarlo. Pero si ya lo configuraste
+    en Meta, debe coincidir con el que Meta tiene.
+
+PARÁMETROS A QUITAR/LIMPIAR:
+  - Ningún parámetro se elimina, pero NINGUNO debe quedar con valores de
+    desarrollo (ej: "demo", "test", "cambiar", "123")
+
+----------------------------------------------------------------------------
+2.2 ARCHIVO: docker-compose.yml  (si usas Docker)
+----------------------------------------------------------------------------
+
+  PUBLIC_URL=${PUBLIC_URL:-http://localhost:3000}
+  → Cambiar el default a tu dominio: https://chat.tudominio.com
+
+  JWT_SECRET=${JWT_SECRET:-cambia-esto}
+  → Quitar el default "cambia-esto", forzar variable de entorno real
+
+  ENCRYPTION_KEY=${ENCRYPTION_KEY}
+  → Asegurar que se pase un valor real (no vacío)
+
+----------------------------------------------------------------------------
+2.3 ARCHIVO: Dockerfile
+----------------------------------------------------------------------------
+
+  FROM node:22-alpine
+  → Verificar que el hosting soporta Node 22. Si no, usar node:22-slim
+
+  CMD ["node", "backend/src/server.js"]
+  → En producción, considerar usar PM2 para reinicio automático:
+    CMD ["npx", "8" "pm2-runtime", "backend/src/server.js"]
+
+----------------------------------------------------------------------------
+2.4 CÓDIGO: backend/src/config/env.js
+----------------------------------------------------------------------------
+
+  No requiere modificación de código. Lee de variables de entorno.
+  Solo asegurar que ENCRYPTION_KEY tenga 64 caracteres hex válidos.
+
+----------------------------------------------------------------------------
+2.5 CÓDIGO: backend/src/server.js
+----------------------------------------------------------------------------
+
+  En local, CORS está abierto a todo:
+    app.use(cors());
+  → En producción, restringir al dominio del panel:
+    app.use(cors({ origin: 'https://chat.tudominio.com' }));
+  → O si el panel se sirve desde el mismo servidor, se puede quitar CORS.
+
+  Helmet tiene CSP desactivado:
+    app.use(helmet({ contentSecurityPolicy: false }));
+  → En producción, configurar CSP properly para mayor seguridad.
+
+----------------------------------------------------------------------------
+2.6 CÓDIGO: public/index.html (Frontend)
+----------------------------------------------------------------------------
+
+  No requiere modificación. El frontend es estático y se sirve desde Express.
+  Las URLs de la API son relativas (/api/...) por lo que funcionan en cualquier dominio.
+
+  Si usas Tailwind/Alpine por CDN, asegurar que el servidor de producción
+  tiene acceso a internet para cargarlos. Si no, descargar y servir localmente.
+
+
+================================================================================
+SECCIÓN 3: CREDENCIALES A QUITAR O MODIFICAR
+================================================================================
+
+----------------------------------------------------------------------------
+3.1 Credenciales de DESARROLLO a QUITAR
+----------------------------------------------------------------------------
+
+  Archivo .env:
+  - ADMIN_PASSWORD=admin123 → cambiar por contraseña fuerte
+  - JWT_SECRET=lykos-dev-secret... → generar nueva
+  - ENCRYPTION_KEY= (la de desarrollo) → generar nueva
+  - PUBLIC_URL=https://demo.ngrok-free.app → dominio real
+
+  Base de datos (data/lykos.db):
+  - Si migras la BD existente, las credenciales cifradas (token WhatsApp,
+    API key IA, App Secret) están cifradas con la ENCRYPTION_KEY de desarrollo.
+    Si cambias la key en producción, NO se podrán descifrar.
+  - OPCIÓN A: Migrar la BD Y mantener la misma ENCRYPTION_KEY (no recomendado
+    si la key de desarrollo fue expuesta).
+  - OPCIÓN B (RECOMENDADA): Empezar con BD limpia (npm run seed) y reingresar
+    las credenciales desde el panel de configuración.
+
+----------------------------------------------------------------------------
+3.2 Credenciales de PRODUCCIÓN a CONFIGURAR
+----------------------------------------------------------------------------
+
+  Desde el panel web (pestaña WhatsApp):
+  - Phone Number ID: de developers.facebook.com
+  - WABA ID: de developers.facebook.com
+  - Token de acceso: token permanente de Meta (System User)
+  - App Secret: de App Settings > Basic en developers.facebook.com
+  - Verify Token: el que se configuró en Meta (o regenerar y actualizar en Meta)
+  - Public URL: https://chat.tudominio.com
+
+  Desde el panel web (pestaña IA):
+  - Base URL, API Key, modelo: de tu proveedor de IA
+  - System prompt: contexto del negocio
+
+  En Meta (developers.facebook.com):
+  - Webhook Callback URL: https://chat.tudominio.com/webhook
+  - Verify Token: debe coincidir con el del panel
+  - Suscribir al campo "messages"
+
+
+================================================================================
+SECCIÓN 4: PROCESO DE MIGRACIÓN PASO A PASO
+================================================================================
+
+----------------------------------------------------------------------------
+Paso 1: Preparar el servidor
+----------------------------------------------------------------------------
+  1. Adquirir VPS o servidor cloud con Node.js 22+
+  2. Instalar Node.js 22:
+     curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+     sudo apt-get install -y nodejs
+  3. Instalar Nginx (reverse proxy):
+     sudo apt-get install -y nginx
+  4. Instalar PM2 (gestor de procesos):
+     sudo npm install -g pm2
+  5. Instalar certbot (SSL gratis):
+     sudo apt-get install -y certbot python3-certbot-nginx
+
+----------------------------------------------------------------------------
+Paso 2: Desplegar el código
+----------------------------------------------------------------------------
+  1. Subir el código al servidor (git clone, scp, o rsync):
+     git clone <repositorio> /var/www/lykos-chat
+     # O si no hay repo:
+     scp -r ./lykos-chat usuario@servidor:/var/www/lykos-chat
+  2. NO subir node_modules ni data/ (se generan en el servidor):
+     - Añadir a .gitignore: node_modules/, data/, .env
+  3. En el servidor, instalar dependencias:
+     cd /var/www/lykos-chat
+     npm install
+  4. Crear el archivo .env de producción (ver Sección 2.1)
+
+----------------------------------------------------------------------------
+Paso 3: Inicializar base de datos
+----------------------------------------------------------------------------
+  1. Crear directorio de BD:
+     mkdir -p /var/lib/lykos-chat
+  2. En .env, poner: DB_PATH=/var/lib/lykos-chat/lykos.db
+  3. Ejecutar seed:
+     npm run seed
+  4. Verificar que se creó el admin:
+     node -e "require('./backend/src/config/database').initDatabase();
+       const m=require('./backend/src/models/usuario');
+       console.log(m.listAll());"
+
+----------------------------------------------------------------------------
+Paso 4: Configurar Nginx (reverse proxy)
+----------------------------------------------------------------------------
+  Crear /etc/nginx/sites-available/lykos-chat:
+
+    server {
+        listen 80;
+        server_name chat.tudominio.com;
+
+        location / {
+            proxy_pass http://localhost:3000;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_cache_bypass $http_upgrade;
+        }
+    }
+
+  Activar:
+    sudo ln -s /etc/nginx/sites-available/lykos-chat /etc/nginx/sites-enabled/
+    sudo nginx -t
+    sudo systemctl reload nginx
+
+----------------------------------------------------------------------------
+Paso 5: SSL con Let's Encrypt
+----------------------------------------------------------------------------
+    sudo certbot --nginx -d chat.tudominio.com
+  → Certbot modifica automáticamente la config de Nginx para HTTPS
+  → Renovación automática: sudo certbot renew --dry-run
+
+----------------------------------------------------------------------------
+Paso 6: Iniciar con PM2
+----------------------------------------------------------------------------
+    cd /var/www/lykos-chat
+    pm2 start backend/src/server.js --name lykos-chat
+    pm2 save
+    pm2 startup  # para arrancar automáticamente al reiniciar el servidor
+
+  Verificar:
+    pm2 status
+    pm2 logs lykos-chat
+
+----------------------------------------------------------------------------
+Paso 7: Configurar webhook en Meta
+----------------------------------------------------------------------------
+  1. Ir a developers.facebook.com → tu App → WhatsApp → Configuration
+  2. Webhook Callback URL: https://chat.tudominio.com/webhook
+  3. Verify Token: el del panel (o regenerar)
+  4. Click "Verify and Save"
+  5. Suscribir al campo "messages"
+  6. Verificar suscripción:
+     GET https://graph.facebook.com/v19.0/{WABA_ID}/subscribed_apps
+     (debe devolver la app suscrita)
+
+----------------------------------------------------------------------------
+Paso 8: Configurar credenciales desde el panel
+----------------------------------------------------------------------------
+  1. Abrir https://chat.tudominio.com en el navegador
+  2. Login con admin y la contraseña de producción
+  3. Pestaña WhatsApp: ingresar Phone Number ID, WABA ID, token, App Secret
+  4. Click "Probar conexión" → debe dar OK
+  5. Pestaña IA: configurar si aplica
+  6. Pestaña Bot: configurar flujos y palabras clave
+
+----------------------------------------------------------------------------
+Paso 9: Probar end-to-end
+----------------------------------------------------------------------------
+  1. Enviar mensaje desde WhatsApp personal al número de Business
+  2. Verificar que aparece en el panel → pestaña "Agentes"
+  3. Verificar que el bot responde automáticamente
+  4. Verificar que el contacto aparece en pestaña "Contactos"
+
+
+================================================================================
+SECCIÓN 5: OPCIÓN ALTERNATIVA - DEPLOY CON DOCKER
+================================================================================
+
+  1. Crear .env de producción en el servidor
+  2. docker-compose up -d
+  3. Configurar Nginx + SSL igual que en los pasos 4-5
+  4. El contenedor expone el puerto 3000
+
+  Ventajas: aislamiento, fácil actualización, reproducible
+  Desventajas: mayor consumo de recursos
+
+
+================================================================================
+SECCIÓN 6: RECOMENDACIONES Y BUENAS PRÁCTICAS
+================================================================================
+
+----------------------------------------------------------------------------
+6.1 Antes de la migración
+----------------------------------------------------------------------------
+- Hacer backup de la BD local: cp data/lykos.db data/lykos-backup.db
+- Probar que el código funciona limpio: npm run seed && npm start
+- Verificar que .env NO se sube al repositorio (.gitignore)
+- Generar todas las claves nuevas (JWT_SECRET, ENCRYPTION_KEY) ANTES de seed
+- Documentar el dominio, puerto y rutas del servidor de producción
+
+----------------------------------------------------------------------------
+6.2 Durante la migración
+----------------------------------------------------------------------------
+- NO reutilizar la ENCRYPTION_KEY de desarrollo si estuvo expuesta
+- Empezar con BD limpia (npm run seed) y reingresar credenciales desde el panel
+- Usar HTTPS obligatorio (Meta rechaza webhooks http)
+- Configurar firewall: abrir solo puertos 80, 443 y SSH
+  sudo ufw allow 80/tcp
+  sudo ufw allow 443/tcp
+  sudo ufw allow 22/tcp
+  sudo ufw enable
+- NO exponer el puerto 3000 directamente al internet (usar Nginx)
+
+----------------------------------------------------------------------------
+6.3 Después de la migración
+----------------------------------------------------------------------------
+- Cambiar la contraseña del admin desde el panel (Usuarios → Editar)
+- Crear usuarios agente con contraseñas individuales
+- Configurar el App Secret real para validación de firma del webhook
+- Activar rate limiting (ya incluido en login: 10 intentos / 15 min)
+- Monitorear logs: pm2 logs lykos-chat
+- Configurar alertas de reinicio: pm2 monit
+- Backup periódico de la BD:
+  crontab: 0 3 * * * cp /var/lib/lykos-chat/lykos.db /backups/lykos-$(date +\%Y\%m\%d).db
+
+----------------------------------------------------------------------------
+6.4 Seguridad en producción
+----------------------------------------------------------------------------
+- Restringir CORS al dominio del panel (ver Sección 2.5)
+- Usar contraseñas fuertes (mínimo 12 caracteres) para todos los usuarios
+- Rotar el token de acceso de Meta periódicamente
+- No compartir la cuenta admin; cada persona tiene su usuario
+- Revisar logs de errores regularmente (tabla logs_api o pm2 logs)
+- Considerar migrar de SQLite a PostgreSQL si el volumen supera ~100K mensajes
+- Mantener Node.js y dependencias actualizadas: npm audit && npm update
+
+----------------------------------------------------------------------------
+6.5 Mantenimiento
+----------------------------------------------------------------------------
+- Actualizar el código: git pull && npm install && pm2 restart lykos-chat
+- Verificar espacio en disco (la BD SQLite crece): df -h
+- Compactar la BD SQLite periódicamente:
+  sqlite3 /var/lib/lykos-chat/lykos.db "VACUUM;"
+- Monitorear consumo de tokens de IA desde el panel → pestaña Métricas
+- Si la ventana de 24h expira, usar plantillas (templates) para reabrir
+
+
+================================================================================
+SECCIÓN 7: CHECKLIST DE MIGRACIÓN
+================================================================================
+
+  [ ] Servidor con Node.js 22+ contratado
+  [ ] Dominio apuntando al servidor (DNS A record)
+  [ ] .env de producción creado con claves seguras
+  [ ] Código subido al servidor (sin node_modules, sin .env, sin data/)
+  [ ] npm install ejecutado
+  [ ] npm run seed ejecutado (admin creado)
+  [ ] Nginx configurado como reverse proxy
+  [ ] SSL instalado con Let's Encrypt
+  [ ] PM2 iniciado y configurado (pm2 startup + pm2 save)
+  [ ] Firewall configurado (solo 80, 443, 22)
+  [ ] Panel web accesible en https://chat.tudominio.com
+  [ ] Login funciona con credenciales de producción
+  [ ] Credenciales WhatsApp ingresadas en el panel
+  [ ] "Probar conexión" WhatsApp → OK
+  [ ] Webhook configurado en Meta (URL + verify token)
+  [ ] App suscrita al campo "messages" en Meta
+  [ ] App Secret configurado en el panel (validación de firma)
+  [ ] Mensaje de prueba enviado y recibido en el panel
+  [ ] Bot responde automáticamente
+  [ ] IA configurada (si aplica) y probada
+  [ ] Backup automático de BD configurado (cron)
+  [ ] Contraseña de admin cambiada
+  [ ] Usuarios agente creados
+
+
+================================================================================
+                              FIN DEL DOCUMENTO
+================================================================================

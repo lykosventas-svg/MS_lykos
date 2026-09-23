@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="es" x-data="app()" x-init="init()">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="https://lykos.mx/wp-content/uploads/2020/05/Logotipo-Likos_Mesa-de-trabajo-1-e1590453401721.png" />
+  <title>Lykos Chat — Panel</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="/js/api.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href="/css/app.css" />
+  <script>
+    tailwind.config = { theme: { extend: { colors: {
+      brand: { 50:'#eff6ff',100:'#dbeafe',200:'#bfdbfe',400:'#3b82f6',500:'#2563eb',600:'#0d2b4e',700:'#0a223d',900:'#06203a' }
+    }}}}
+  </script>
+</head>
+<body class="min-h-screen">
+
+  <!-- ============ LOGIN ============ -->
+  <template x-if="view==='login'">
+    <div class="min-h-screen flex items-center justify-center px-4" style="background: #ffffff;">
+      <div class="login-wrap">
+        <div class="text-center">
+          <img src="https://lykos.mx/wp-content/uploads/2020/04/logo-lykos.png" alt="Lykos" class="login-logo" />
+          <p class="login-subtitle">Panel de administración para WhatsApp</p>
+        </div>
+        <form @submit.prevent="doLogin()" class="login-form-layout">
+          <input x-model="loginForm.username" type="text" class="login-input" placeholder="Usuario" autocomplete="username" />
+          <div class="login-input-wrap">
+            <input x-model="loginForm.password" :type="showLoginPass ? 'text' : 'password'" class="login-input login-input-pass" placeholder="Contraseña" autocomplete="current-password" />
+            <button type="button" class="login-pass-toggle" aria-label="Mostrar contraseña"
+              @mousedown="showLoginPass = true" @mouseup="showLoginPass = false" @mouseleave="showLoginPass = false"
+              @touchstart.prevent="showLoginPass = true" @touchend="showLoginPass = false">
+              <svg x-show="!showLoginPass" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1 1 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178a1 1 0 010 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <svg x-show="showLoginPass" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.983A10.457 10.457 0 0012 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639A10.457 10.457 0 0112 19.5c-4.638 0-8.573-3.007-9.963-7.178a1 1 0 010-.639"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75a3 3 0 015.25 2.122v.378a3 3 0 01-5.25 2.122M3 3l18 18"/></svg>
+            </button>
+          </div>
+          <template x-if="loginError">
+            <p class="login-error" x-text="loginError"></p>
+          </template>
+          <button type="submit" :disabled="loginLoading" class="login-btn">
+            <span x-show="!loginLoading">Ingresar</span>
+            <span x-show="loginLoading">Verificando...</span>
+          </button>
+        </form>
+      </div>
+    </div>
+  </template>
+
+  <!-- ============ PANEL ============ -->
+  <template x-if="view==='panel'">
+    <div class="h-screen flex flex-col">
+
+      <!-- Navbar -->
+      <header class="navbar">
+        <div class="flex items-center gap-3">
+          <button @click="sidebarOpen = !sidebarOpen" class="navbar-toggle">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
+          </button>
+          <div class="navbar-brand" @click="changeTab('inicio')" style="cursor: pointer;">
+            <img src="https://lykos.mx/wp-content/uploads/2020/04/cropped-Logotipo-Lykos.png" alt="Lykos" style="height: 32px; width: auto; object-fit: contain;" />
+            <span>LYKOS CHAT</span>
+          </div>
+        </div>
+        <div class="navbar-right">
+          <span class="navbar-welcome">Bienvenido</span>
+          <span class="navbar-user" x-text="user?.nombre || user?.username"></span>
+          <button @click="logout()" class="navbar-logout">Salir</button>
+        </div>
+      </header>
+
+      <!-- Layout: sidebar + contenido -->
+      <div class="flex flex-1 overflow-hidden">
+
+        <!-- Overlay para sidebar en móvil -->
+        <div x-show="sidebarOpen" @click="sidebarOpen = false" class="sidebar-overlay"></div>
+
+        <!-- Sidebar -->
+        <aside :class="sidebarOpen ? 'w-60' : 'w-0'" class="sidebar">
+          <div class="sidebar-inner">
+            <button @click="changeTab('inicio')" :class="tab==='inicio' ? 'nav-active' : 'nav-item'" class="nav-item">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+              <span>Inicio</span>
+            </button>
+
+            <div class="sidebar-section" x-show="user?.role==='admin'">Configuración</div>
+
+            <button x-show="user?.role==='admin'" @click="changeTab('whatsapp')" :class="tab==='whatsapp' ? 'nav-active' : 'nav-item'" class="nav-item">
+              <svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.04 2 11c0 2.52 1.17 4.79 3.04 6.42L4 22l4.7-1.46C9.73 21 10.84 21 12 21c5.52 0 10-4.04 10-9s-4.48-9-10-9z"/></svg>
+              <span>WhatsApp</span>
+            </button>
+
+            <button x-show="user?.role==='admin'" @click="changeTab('ia')" :class="tab==='ia' ? 'nav-active' : 'nav-item'" class="nav-item">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.5.8a2 2 0 11-3.464 0l.5-.8z"/></svg>
+              <span>Inteligencia Artificial</span>
+            </button>
+
+            <button x-show="user?.role==='admin'" @click="changeTab('bot')" :class="tab==='bot' ? 'nav-active' : 'nav-item'" class="nav-item">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h10M4 18h10"/></svg>
+              <span>Flujos del Bot</span>
+            </button>
+
+            <div class="sidebar-section" style="margin-top: 16px;">Operación</div>
+
+            <button @click="changeTab('agentes')" :class="tab==='agentes' ? 'nav-active' : 'nav-item'" class="nav-item">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+              <span>Agentes</span>
+            </button>
+
+            <button @click="changeTab('contactos')" :class="tab==='contactos' ? 'nav-active' : 'nav-item'" class="nav-item">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <span>Contactos</span>
+            </button>
+
+            <button x-show="user?.role==='admin'" @click="changeTab('masivos')" :class="tab==='masivos' ? 'nav-active' : 'nav-item'" class="nav-item">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+              <span>Mensajes Masivos</span>
+            </button>
+
+            <button x-show="user?.role==='admin'" @click="changeTab('metricas')" :class="tab==='metricas' ? 'nav-active' : 'nav-item'" class="nav-item">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+              <span>Métricas</span>
+            </button>
+
+            <div class="sidebar-section" style="margin-top: 16px;" x-show="user?.role==='admin'">Administración</div>
+
+            <button x-show="user?.role==='admin'" @click="changeTab('usuarios')" :class="tab==='usuarios' ? 'nav-active' : 'nav-item'" class="nav-item">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.286c1.376-.836 2.96.576 2.122 1.952a1.724 1.724 0 001.286 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.286 2.573c.836 1.376-.576 2.96-1.952 2.122a1.724 1.724 0 00-2.573 1.286c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.286c-1.376.836-2.96-.576-2.122-1.952a1.724 1.724 0 00-1.286-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.286-2.573c-.836-1.376.576-2.96 1.952-2.122a1.724 1.724 0 002.573-1.286z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+              <span>Usuarios</span>
+            </button>
+
+            <button x-show="user?.role==='admin'" @click="toggleNotifExpand()" :class="tab==='notificaciones' ? 'nav-active' : 'nav-item'" class="nav-item">
+              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5v-5a7 7 0 00-14 0v5h5m4 0v3m-4-3v3M9 7a3 3 0 016 0"/></svg>
+              <span>Notificaciones</span>
+              <span class="nav-chevron" x-text="notifExpanded ? '▾' : '›'"></span>
+            </button>
+
+            <div class="nav-submodules" x-show="user?.role==='admin' && notifExpanded" x-transition.duration.200ms>
+              <button @click="selectNotifSubtab('notif-global')" :class="subtab==='notif-global' ? 'subnav-active' : 'subnav-item'" class="subnav-item">
+                <span>Configuración general</span>
+              </button>
+              <button @click="selectNotifSubtab('notif-usuarios')" :class="subtab==='notif-usuarios' ? 'subnav-active' : 'subnav-item'" class="subnav-item">
+                <span>Notificaciones por usuario</span>
+              </button>
+              <button @click="selectNotifSubtab('notif-log')" :class="subtab==='notif-log' ? 'subnav-active' : 'subnav-item'" class="subnav-item">
+                <span>Historial de envíos</span>
+              </button>
+            </div>
+
+            <div class="sidebar-footer">
+              Sesión: <span class="font-semibold" x-text="user?.role"></span>
+            </div>
+          </div>
+        </aside>
+
+        <!-- Contenido -->
+        <main class="flex-1" :class="tab==='agentes' ? 'flex flex-col overflow-hidden' : 'overflow-y-auto'" style="background: var(--bg-soft);">
+          <div :class="tab==='agentes' ? 'flex flex-col flex-1 min-h-0' : (tab==='inicio' ? 'max-w-[1300px] mx-auto p-6' : 'p-4')">
+
+          <!-- ===== INICIO ===== -->
+          <template x-if="tab==='inicio'">
+            <div class="space-y-6">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="card home-action-card">
+                  <div class="home-action-content">
+                    <img src="https://lykos.mx/wp-content/uploads/2026/09/icono-de-bot.webp" alt="Icono bot" class="home-profile-icon">
+                    <div>
+                      <h2 class="card-title" style="margin:0 0 6px;">¿Necesitas ayuda o apoyo?</h2>
+                      <p class="text-sm" style="color:var(--text-soft);margin:0;">Inicia el asistente de IA para automatizar procesos, recibir ayuda y resolver dudas de soporte tecnico.</p>
+                    </div>
+                    <button class="btn-primary" style="text-transform:uppercase;letter-spacing:.03em;font-size:13px;">Iniciar</button>
+                  </div>
+                </div>
+                <div class="card home-action-card">
+                  <div class="home-action-content">
+                    <div>
+                      <h2 class="card-title" style="margin:0 0 6px;">¿Tienes dudas?</h2>
+                      <p class="text-sm" style="color:var(--text-soft);margin:0;">Lee el manual de Lykos chat</p>
+                    </div>
+                    <button class="btn-primary" style="text-transform:uppercase;letter-spacing:.03em;font-size:13px;">Revisar</button>
+                  </div>
+                </div>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
+                <div class="home-quick-card" @click="changeTab('whatsapp')" x-show="user?.role==='admin'">
+                  <div class="home-quick-curve"></div>
+                  <div class="home-quick-body">
+                    <div class="home-quick-icon"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.04 2 11c0 2.52 1.17 4.79 3.04 6.42L4 22l4.7-1.46C9.73 21 10.84 21 12 21c5.52 0 10-4.04 10-9s-4.48-9-10-9z"/></svg></div>
+                    <div><h3 class="home-quick-title">WhatsApp</h3><p class="home-quick-sub">Configura tu conexion de WhatsApp</p></div>
+                  </div>
+                </div>
+                <div class="home-quick-card" @click="changeTab('ia')" x-show="user?.role==='admin'">
+                  <div class="home-quick-curve"></div>
+                  <div class="home-quick-body">
+                    <div class="home-quick-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.5.8a2 2 0 11-3.464 0l.5-.8z"/></svg></div>
+                    <div><h3 class="home-quick-title">Inteligencia Artificial</h3><p class="home-quick-sub">Administra la IA de tu bot</p></div>
+                  </div>
+                </div>
+                <div class="home-quick-card" @click="changeTab('bot')" x-show="user?.role==='admin'">
+                  <div class="home-quick-curve"></div>
+                  <div class="home-quick-body">
+                    <div class="home-quick-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h10M4 18h10"/></svg></div>
+                    <div><h3 class="home-quick-title">Flujos del Bot</h3><p class="home-quick-sub">Administra tus flujos conversacionales</p></div>
+                  </div>
+                </div>
+                <div class="home-quick-card" @click="changeTab('masivos')" x-show="user?.role==='admin'">
+                  <div class="home-quick-curve"></div>
+                  <div class="home-quick-body">
+                    <div class="home-quick-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div>
+                    <div><h3 class="home-quick-title">Mensajes Masivos</h3><p class="home-quick-sub">Envia campanas masivas</p></div>
+                  </div>
+                </div>
+                <div class="home-quick-card" @click="changeTab('metricas')" x-show="user?.role==='admin'">
+                  <div class="home-quick-curve"></div>
+                  <div class="home-quick-body">
+                    <div class="home-quick-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg></div>
+                    <div><h3 class="home-quick-title">Métricas</h3><p class="home-quick-sub">Visualiza el rendimiento del sistema</p></div>
+                  </div>
+                </div>
+                <div class="home-quick-card" @click="changeTab('usuarios')" x-show="user?.role==='admin'">
+                  <div class="home-quick-curve"></div>
+                  <div class="home-quick-body">
+                    <div class="home-quick-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg></div>
+                    <div><h3 class="home-quick-title">Usuarios</h3><p class="home-quick-sub">Gestiona los usuarios del sistema</p></div>
+                  </div>
+                </div>
+                <div class="home-quick-card" @click="changeTab('agentes')">
+                  <div class="home-quick-curve"></div>
+                  <div class="home-quick-body">
+                    <div class="home-quick-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg></div>
+                    <div><h3 class="home-quick-title">Agentes</h3><p class="home-quick-sub">Atiende conversaciones en tiempo real</p></div>
+                  </div>
+                </div>
+                <div class="home-quick-card" @click="changeTab('contactos')">
+                  <div class="home-quick-curve"></div>
+                  <div class="home-quick-body">
+                    <div class="home-quick-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg></div>
+                    <div><h3 class="home-quick-title">Contactos</h3><p class="home-quick-sub">Administra tus contactos de WhatsApp</p></div>
+                  </div>
+                </div>
+                <div class="home-quick-card" @click="changeTab('notificaciones')" x-show="user?.role==='admin'">
+                  <div class="home-quick-curve"></div>
+                  <div class="home-quick-body">
+                    <div class="home-quick-icon"><svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5v-5a7 7 0 00-14 0v5h5m4 0v3m-4-3v3M9 7a3 3 0 016 0"/></svg></div>
+                    <div><h3 class="home-quick-title">Notificaciones</h3><p class="home-quick-sub">Configura alertas a tu equipo</p></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- ===== WHATSAPP ===== -->
+          <template x-if="tab==='whatsapp'">
+            <div class="grid-2">
+              <div class="card">
+                <h2 class="card-title">Configuración de WhatsApp Cloud API</h2>
+                <div class="form-grid">
+                  <div class="field">
+                    <label class="field-label">Phone Number ID</label>
+                    <input x-model="wa.phone_number_id" class="input" placeholder="123456789" />
+                  </div>
+                  <div class="field">
+                    <label class="field-label">WABA ID</label>
+                    <input x-model="wa.waba_id" class="input" placeholder="123456789" />
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Token de acceso</label>
+                  <div class="input-group">
+                    <input :type="showWaToken ? 'text' : 'password'" x-model="wa.access_token" class="input" :placeholder="wa.has_token ? 'Guardado (escribe para reemplazar)' : 'Permanent Access Token'" />
+                    <button @click="showWaToken=!showWaToken" class="btn-ghost btn-sm" x-text="showWaToken ? 'Ocultar' : 'Mostrar'"></button>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field-label">App Secret</label>
+                  <div class="input-group">
+                    <input :type="showAppSecret ? 'text' : 'password'" x-model="wa.app_secret" class="input" :placeholder="wa.has_app_secret ? 'Guardado (escribe para reemplazar)' : 'App Secret'" />
+                    <button @click="showAppSecret=!showAppSecret" class="btn-ghost btn-sm" x-text="showAppSecret ? 'Ocultar' : 'Mostrar'"></button>
+                  </div>
+                  <p class="field-help">Encuéntralo en developers.facebook.com > tu App > Configuración > Básica > App Secret.</p>
+                </div>
+                <div class="form-grid">
+                  <div class="field">
+                    <label class="field-label">Verify Token</label>
+                    <div class="input-group">
+                      <input x-model="wa.verify_token" class="input input-mono" readonly />
+                      <button @click="regenVerify()" class="btn-ghost btn-sm">Generar</button>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <label class="field-label">URL pública del sistema</label>
+                    <input x-model="wa.public_url" class="input" placeholder="https://tu-dominio.com" />
+                  </div>
+                </div>
+                <div class="flex-actions">
+                  <button @click="saveWa()" :disabled="waSaving" class="btn-primary">
+                    <span x-show="!waSaving">Guardar</span><span x-show="waSaving">Guardando...</span>
+                  </button>
+                  <button @click="testWa()" :disabled="waTesting" class="btn-secondary">
+                    <span x-show="!waTesting">Probar conexión</span><span x-show="waTesting">Probando...</span>
+                  </button>
+                </div>
+                <template x-if="waMsg">
+                  <div class="mt-4" :class="waMsgOk ? 'alert-ok' : 'alert-err'" x-text="waMsg"></div>
+                </template>
+              </div>
+              <div class="card">
+                <h2 class="card-title">Webhook</h2>
+                <p class="field-help mb-3">Configura el webhook en Meta para recibir mensajes.</p>
+                <div class="field">
+                  <label class="field-label">Callback URL</label>
+                  <input class="input input-mono input-readonly" readonly :value="(wa.public_url || '') + '/webhook'" />
+                </div>
+                <div class="field">
+                  <label class="field-label">Verify Token</label>
+                  <input class="input input-mono input-readonly" readonly :value="wa.verify_token" />
+                </div>
+                <div class="callout mt-4">
+                  En developers.facebook.com ve a WhatsApp > Configuración > Webhook. Pega la URL y el verify token, luego suscríbete al webhook.
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- ===== IA ===== -->
+          <template x-if="tab==='ia'">
+            <div>
+              <div class="flex items-center justify-between mb-6 ia-config-header">
+                <h2 class="card-title" style="margin:0;">Inteligencia Artificial <span class="text-faint font-normal text-sm">(CRUD de modelos)</span></h2>
+                <button @click="openNewIaConfig()" class="btn-primary btn-sm">+ Nueva configuración</button>
+              </div>
+              <div class="callout-warning mb-5">
+                <strong>Instrucción fija del sistema (no editable):</strong> Si el usuario pide hablar con un asesor o humano, la IA responde con la etiqueta [ESCALAR_HUMANO] y el backend activa el handoff automáticamente. Solo un modelo puede estar activo a la vez.
+              </div>
+              <div class="space-y-4">
+                <template x-if="iaConfigs.length === 0">
+                  <div class="card" style="text-align:center; padding:40px;">
+                    <p class="text-secondary mb-4">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5" style="width:48px;height:48px;margin:0 auto 12px;display:block;color:var(--text-faint);"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.5.8a2 2 0 11-3.464 0l.5-.8z"/></svg>
+                      No hay configuraciones de IA creadas.
+                    </p>
+                    <button @click="openNewIaConfig()" class="btn-primary">Crear primera configuración</button>
+                  </div>
+                </template>
+                <template x-for="c in iaConfigs" :key="c.id">
+                  <div class="card ia-config-card" :class="c.activo ? 'ia-config-active' : ''">
+                    <div class="flex items-start justify-between">
+                      <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-2">
+                          <h3 class="font-semibold text-lg" style="margin:0;" x-text="c.nombre"></h3>
+                          <span class="badge" :class="c.activo ? 'badge-ok' : 'badge-no'" x-text="c.activo ? 'ACTIVO' : 'Inactivo'"></span>
+                          <span class="badge badge-info" x-text="c.ia_mode === 'principal' ? 'IA Principal' : 'IA Respaldo'"></span>
+                        </div>
+                        <p class="text-sm text-secondary mb-2" x-show="c.descripcion" x-text="c.descripcion"></p>
+                        <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm text-secondary">
+                          <span><strong>Modelo:</strong> <span x-text="c.model_name"></span></span>
+                          <span><strong>Base URL:</strong> <span x-text="(c.base_url || '').slice(0, 50) + ((c.base_url || '').length > 50 ? '...' : '')"></span></span>
+                          <span><strong>API Key:</strong> <span x-text="c.has_api_key ? c.api_key_masked : 'No'" :style="c.has_api_key ? '' : 'color: var(--danger)'"></span></span>
+                          <span><strong>Temp:</strong> <span x-text="c.temperature"></span></span>
+                          <span><strong>Max tokens:</strong> <span x-text="c.max_tokens"></span></span>
+                          <span><strong>Límite/día:</strong> <span x-text="c.max_messages_per_day"></span></span>
+                        </div>
+                        <template x-if="c.last_check_result">
+                          <p class="text-xs mt-2" style="color: var(--text-faint);" x-text="'Última prueba: ' + c.last_check_result"></p>
+                        </template>
+                      </div>
+                      <div class="flex items-center gap-3 ml-4">
+                        <label class="switch" title="Activar/Desactivar modelo">
+                          <input type="checkbox" :checked="c.activo" @change="toggleIaConfigActivo(c)" />
+                          <span class="slider"></span>
+                        </label>
+                        <div class="relative">
+                          <button @click.stop="userMenuOpen === ('ia-'+c.id) ? userMenuOpen = null : userMenuOpen = ('ia-'+c.id)" class="btn-ghost btn-sm">Opciones ▾</button>
+                          <template x-if="userMenuOpen === ('ia-'+c.id)">
+                            <div class="dropdown" @click.outside="userMenuOpen = null">
+                              <button @click="testIaConfig(c); userMenuOpen = null" :disabled="iaConfigTesting" class="dropdown-item" x-text="iaConfigTesting ? 'Probando...' : 'Probar conexión'"></button>
+                              <button @click="openEditIaConfig(c); userMenuOpen = null" class="dropdown-item">Editar</button>
+                              <button @click="deleteIaConfig(c); userMenuOpen = null" class="dropdown-item dropdown-item-danger">Eliminar</button>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+              <div x-show="iaConfigModalOpen" class="modal-overlay" @click.self="closeIaConfigModal()">
+                <div class="modal-box" style="max-width: 600px;">
+                  <div class="flex items-center justify-between mb-5">
+                    <h3 class="card-title" style="margin:0;" x-text="iaConfigEdit ? 'Editar configuración' : 'Nueva configuración'"></h3>
+                    <button @click="closeIaConfigModal()" class="btn-ghost btn-sm">✕</button>
+                  </div>
+                  <div class="field"><label class="field-label">Nombre *</label><input x-model="iaConfigForm.nombre" class="input" placeholder="Ej: IA Ventas, IA Soporte..." /></div>
+                  <div class="field"><label class="field-label">Descripción <span class="text-faint font-normal">(opcional)</span></label><input x-model="iaConfigForm.descripcion" class="input" placeholder="Breve descripción del uso de esta configuración" /></div>
+                  <div class="field">
+                    <label class="field-label">Modo de operación</label>
+                    <div class="grid sm:grid-cols-2 gap-3">
+                      <label class="radio-card" :class="iaConfigForm.ia_mode==='respaldo' ? 'radio-active' : ''"><input type="radio" x-model="iaConfigForm.ia_mode" value="respaldo" class="hidden" /><span class="font-semibold text-sm">IA como respaldo</span><span class="field-help">El bot responde primero; si no entiende, consulta a la IA.</span></label>
+                      <label class="radio-card" :class="iaConfigForm.ia_mode==='principal' ? 'radio-active' : ''"><input type="radio" x-model="iaConfigForm.ia_mode" value="principal" class="hidden" /><span class="font-semibold text-sm">IA como principal</span><span class="field-help">Toda la conversación la maneja la IA.</span></label>
+                    </div>
+                  </div>
+                  <div class="field"><label class="field-label">Base URL de la API <span class="text-faint font-normal">(OpenAI-compatible)</span></label><input x-model="iaConfigForm.base_url" class="input" placeholder="https://api.openai.com/v1" /></div>
+                  <div class="field">
+                    <label class="field-label">API Key</label>
+                    <div class="input-group">
+                      <input :type="showIaConfigKey ? 'text' : 'password'" x-model="iaConfigForm.api_key" class="input" :placeholder="iaConfigEdit?.has_api_key ? 'Guardada (escribe para reemplazar)' : 'Ingresa la API key'" />
+                      <button @click="showIaConfigKey=!showIaConfigKey" class="btn-ghost btn-sm" x-text="showIaConfigKey ? 'Ocultar' : 'Mostrar'"></button>
+                    </div>
+                  </div>
+                  <div class="form-grid">
+                    <div class="field"><label class="field-label">Nombre del modelo</label><input x-model="iaConfigForm.model_name" class="input" placeholder="glm-5.2" /></div>
+                    <div class="field"><label class="field-label">Máx. tokens de respuesta</label><input x-model.number="iaConfigForm.max_tokens" type="number" min="50" max="4000" class="input" /></div>
+                  </div>
+                  <div class="field"><label class="field-label">Temperature: <span class="font-semibold" x-text="iaConfigForm.temperature?.toFixed(2)"></span></label><input x-model.number="iaConfigForm.temperature" type="range" min="0" max="2" step="0.05" class="w-full" style="accent-color: var(--navy);" /></div>
+                  <div class="field"><label class="field-label">Prompt de sistema / contexto del negocio</label><textarea x-model="iaConfigForm.system_prompt" rows="5" class="input" placeholder="Describe tu empresa, servicios, precios, horarios, políticas y tono de respuesta..."></textarea></div>
+                  <div class="field"><label class="field-label">Límite de mensajes IA por conversación/día</label><input x-model.number="iaConfigForm.max_messages_per_day" type="number" min="1" max="1000" class="input" /></div>
+                  <div class="field flex items-center gap-3">
+                    <label class="switch"><input type="checkbox" x-model="iaConfigForm.activo" /><span class="slider"></span></label>
+                    <span class="text-sm font-semibold">Activar este modelo</span>
+                    <span class="field-help" x-show="iaConfigForm.activo">(se desactivarán los demás)</span>
+                  </div>
+                  <div class="flex-actions mt-5">
+                    <button @click="saveIaConfig()" :disabled="iaConfigSaving" class="btn-primary"><span x-show="!iaConfigSaving">Guardar</span><span x-show="iaConfigSaving">Guardando...</span></button>
+                    <button @click="closeIaConfigModal()" class="btn-secondary">Cancelar</button>
+                  </div>
+                  <template x-if="iaConfigMsg"><div class="mt-4" :class="iaConfigMsgOk ? 'alert-ok' : 'alert-err'" x-text="iaConfigMsg"></div></template>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- ===== BOT ===== -->
+          <template x-if="tab==='bot'">
+            <div>
+              <div class="card mb-5" style="position:relative;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <h2 class="card-title">Inicio de conversación</h2>
+                  <label class="switch" style="flex-shrink:0;">
+                    <input type="checkbox" :checked="bot.modo_inicio !== 'none'" @change="toggleModoInicio($event.target.checked)" />
+                    <span class="slider"></span>
+                  </label>
+                </div>
+                <p class="field-help mb-3">Define cómo empiezan las nuevas conversaciones. Solo se puede activar uno a la vez.</p>
+                <div class="grid sm:grid-cols-2 gap-3" :style="bot.modo_inicio === 'none' ? 'opacity:0.35;pointer-events:none;' : ''">
+                  <label class="radio-card" :class="bot.modo_inicio==='bot' ? 'radio-active' : ''" @click="setModoInicio('bot')">
+                    <input type="radio" x-model="bot.modo_inicio" value="bot" class="hidden" />
+                    <div style="display:flex;align-items:center;gap:12px;">
+                      <img src="https://lykos.mx/wp-content/uploads/2026/09/icono-de-bot.webp" alt="Bot" style="width:56px;height:56px;flex-shrink:0;">
+                      <div>
+                        <span class="font-semibold text-sm">BOT</span>
+                        <span class="field-help">Las nuevas conversaciones empiezan con flujos del bot.</span>
+                      </div>
+                    </div>
+                  </label>
+                  <label class="radio-card" :class="bot.modo_inicio==='ia' ? 'radio-active' : ''" @click="setModoInicio('ia')">
+                    <input type="radio" x-model="bot.modo_inicio" value="ia" class="hidden" />
+                    <div style="display:flex;align-items:center;gap:12px;">
+                      <img src="https://lykos.mx/wp-content/uploads/2026/09/icono_IA.webp" alt="IA" style="width:56px;height:56px;flex-shrink:0;">
+                      <div>
+                        <span class="font-semibold text-sm">IA</span>
+                        <span class="field-help">Las nuevas conversaciones empiezan con inteligencia artificial.</span>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+                <div class="card-disabled-overlay" x-show="bot.modo_inicio === 'none'" x-transition.duration.200ms>
+                  <span>Deshabilitado</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between mb-6">
+                <h2 class="card-title" style="margin:0;">Flujos del Bot <span class="text-faint font-normal text-sm">(CRUD de modelos)</span></h2>
+                <button @click="openNewFlujoBot()" class="btn-primary btn-sm">+ Crear flujo</button>
+              </div>
+              <div class="space-y-4">
+                <template x-if="flujosBot.length === 0">
+                  <div class="card" style="text-align:center; padding:40px;">
+                    <p class="text-secondary mb-4">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5" style="width:48px;height:48px;margin:0 auto 12px;display:block;color:var(--text-faint);"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h10M4 18h10"/></svg>
+                      No hay flujos de bot creados.
+                    </p>
+                    <button @click="openNewFlujoBot()" class="btn-primary">Crear primer flujo</button>
+                  </div>
+                </template>
+                <template x-for="f in flujosBot" :key="f.id">
+                  <div class="card ia-config-card" :class="f.activo ? 'ia-config-active' : ''">
+                    <div class="flex items-start justify-between">
+                      <div class="flex-1">
+                        <div class="flex items-center gap-3 mb-2">
+                          <h3 class="font-semibold text-lg" style="margin:0;" x-text="f.nombre"></h3>
+                          <span class="badge" :class="f.activo ? 'badge-ok' : 'badge-no'" x-text="f.activo ? 'ACTIVO' : 'Inactivo'"></span>
+                        </div>
+                        <p class="text-sm text-secondary mb-2" x-show="f.descripcion" x-text="f.descripcion"></p>
+                        <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm text-secondary">
+                          <span><strong>Mensaje inicial:</strong> <span x-text="(f.flujo?.nodos?.[0]?.mensaje || f.flujo?.mensaje_bienvenida || '').slice(0, 50)"></span></span>
+                          <span><strong>Botones:</strong> <span x-text="(f.flujo?.nodos?.[0]?.botones || []).length"></span></span>
+                          <span><strong>Niveles:</strong> <span x-text="f.flujo?.niveles || 3"></span></span>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-3 ml-4">
+                        <label class="switch" title="Activar/Desactivar flujo">
+                          <input type="checkbox" :checked="f.activo" @change="toggleFlujoBotActivo(f)" />
+                          <span class="slider"></span>
+                        </label>
+                        <div class="relative">
+                          <button @click.stop="userMenuOpen === ('flujo-'+f.id) ? userMenuOpen = null : userMenuOpen = ('flujo-'+f.id)" class="btn-ghost btn-sm">Opciones ▾</button>
+                          <template x-if="userMenuOpen === ('flujo-'+f.id)">
+                            <div class="dropdown" @click.outside="userMenuOpen = null">
+                              <button @click="openEditFlujoBot(f); userMenuOpen = null" class="dropdown-item">Editar</button>
+                              <button @click="deleteFlujoBot(f); userMenuOpen = null" class="dropdown-item dropdown-item-danger">Eliminar</button>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+              <div x-show="flujoBotModalOpen" class="modal-overlay" @click.self="closeFlujoBotModal()">
+                <div class="modal-box" style="max-width: 700px;">
+                  <div class="flex items-center justify-between mb-5">
+                    <h3 class="card-title" style="margin:0;" x-text="flujoBotEdit ? 'Editar flujo' : 'Crear flujo'"></h3>
+                    <button @click="closeFlujoBotModal()" class="btn-ghost btn-sm">✕</button>
+                  </div>
+                  <div class="field"><label class="field-label">Nombre *</label><input x-model="flujoBotForm.nombre" class="input" placeholder="Ej: Bot Ventas, Bot Soporte..." /></div>
+                  <div class="field"><label class="field-label">Descripción <span class="text-faint font-normal">(opcional)</span></label><input x-model="flujoBotForm.descripcion" class="input" placeholder="Breve descripción del flujo" /></div>
+                  <div class="field"><label class="field-label">Mensaje de fallback</label><input x-model="flujoBotForm.flujo.mensaje_fallback" class="input" placeholder="No entendi. Selecciona una opcion o escribe asesor." /></div>
+                  <div class="field"><label class="field-label">Niveles de conversación</label><input x-model.number="flujoBotForm.flujo.niveles" type="number" min="1" max="3" class="input" style="width: 100px;" /><p class="field-help">Cuántos niveles de botones tendrá el árbol (1-3).</p></div>
+                  <div class="field">
+                    <div class="flex items-center gap-3 mb-2">
+                      <label class="switch"><input type="checkbox" x-model="flujoBotForm.flujo.mensaje_escalamiento_activo" /><span class="slider"></span></label>
+                      <label class="field-label" style="margin:0;">Mensaje de escalamiento</label>
+                    </div>
+                    <input x-model="flujoBotForm.flujo.mensaje_escalamiento" class="input" placeholder="Ej: Te transferimos con un asesor humano. Un momento por favor." :disabled="!flujoBotForm.flujo.mensaje_escalamiento_activo" />
+                    <p class="field-help">Mensaje que se enviara al cliente cuando el flujo termine o se escale a humano. Desactiva para no enviar mensaje.</p>
+                  </div>
+                  <div class="field">
+                    <label class="field-label">Mensajes y botones del flujo</label>
+                    <template x-for="(nodo, ni) in flujoBotForm.flujo.nodos" :key="ni">
+                      <div class="card mb-3" style="padding: 16px; background: var(--bg-soft);">
+                        <span class="font-semibold text-sm">Mensaje inicial del bot</span>
+                        <textarea x-model="nodo.mensaje" rows="2" class="input mb-3" placeholder="Ej: Como puedo ayudarte?"></textarea>
+                        <p class="text-sm font-semibold mb-2">Botones:</p>
+                        <template x-for="(btn, bi) in nodo.botones" :key="bi">
+                          <div class="card mb-2" style="padding: 12px; background: var(--bg-main); border-left: 3px solid var(--accent);">
+                            <div class="flex items-center gap-2 mb-2">
+                              <input x-model="btn.texto" class="input" style="flex:1; height: 36px;" placeholder="Texto del boton" />
+                              <button @click="removeBotonFlujo(nodo, bi)" class="btn-danger btn-sm">✕</button>
+                            </div>
+                            <textarea x-model="btn.respuesta" rows="2" class="input mb-2" placeholder="Respuesta al hacer clic en este boton"></textarea>
+                            <div class="flex items-center gap-3 mb-2"><label class="switch"><input type="checkbox" x-model="btn.escalar_humano" /><span class="slider"></span></label><span class="text-sm">Escalar a humano</span></div>
+                            <div class="mb-2">
+                              <input type="file" @change="uploadDocFlujo(btn, $event)" accept=".pdf,.docx" style="font-size: 12px;" />
+                              <template x-for="(doc, di) in (btn.documentos || [])" :key="di">
+                                <div class="flex items-center gap-2 mt-1"><span class="text-sm" x-text="'📎 ' + doc.name"></span><button @click="removeDocFlujo(btn, di)" class="btn-ghost btn-sm" style="font-size: 11px;">quitar</button></div>
+                              </template>
+                            </div>
+                                    <template x-if="flujoBotForm.flujo.niveles >= 3">
+                              <div style="margin-left: 16px; border-left: 2px solid var(--border); padding-left: 12px;">
+                                <template x-for="(sb, si) in (btn.subbotones || [])" :key="si">
+                                  <div class="card mb-2" style="padding: 10px; background: var(--bg-soft); border-left: 3px solid var(--accent-light);">
+                                    <div class="flex items-center gap-2 mb-2"><input x-model="sb.texto" class="input" style="flex:1; height: 34px; font-size: 13px;" placeholder="Sub-boton" /><button @click="removeSubboton(btn, si)" class="btn-danger btn-sm">✕</button></div>
+                                    <textarea x-model="sb.respuesta" rows="2" class="input mb-2" style="font-size: 13px;" placeholder="Respuesta"></textarea>
+                                    <div class="flex items-center gap-3 mb-2"><label class="switch"><input type="checkbox" x-model="sb.escalar_humano" /><span class="slider"></span></label><span class="text-sm">Escalar a humano</span></div>
+                            <template x-if="flujoBotForm.flujo.niveles >= 2">
+                                      <div style="margin-left: 12px; border-left: 2px solid var(--border); padding-left: 8px;">
+                                        <template x-for="(sb2, s2i) in (sb.subbotones || [])" :key="s2i">
+                                          <div class="card mb-1" style="padding: 8px; background: var(--bg-main); border-left: 3px solid var(--text-faint);">
+                                            <div class="flex items-center gap-2 mb-1"><input x-model="sb2.texto" class="input" style="flex:1; height: 32px; font-size: 12px;" placeholder="Sub-sub-boton" /><button @click="removeSubboton(sb, s2i)" class="btn-danger btn-sm">✕</button></div>
+                                            <textarea x-model="sb2.respuesta" rows="1" class="input mb-1" style="font-size: 12px;" placeholder="Respuesta"></textarea>
+                                            <div class="flex items-center gap-2"><label class="switch"><input type="checkbox" x-model="sb2.escalar_humano" /><span class="slider"></span></label><span class="text-xs">Escalar a humano</span></div>
+                                          </div>
+                                        </template>
+                                        <button @click="addSubboton(sb)" class="btn-ghost btn-sm" style="font-size: 11px;">+ Sub-botón</button>
+                                      </div>
+                                    </template>
+                                  </div>
+                                </template>
+                                <button @click="addSubboton(btn)" class="btn-ghost btn-sm" style="font-size: 12px;">+ Sub-botón</button>
+                              </div>
+                            </template>
+                          </div>
+                        </template>
+                        <button @click="addBotonFlujo(nodo)" class="btn-secondary btn-sm">+ Agregar boton</button>
+                      </div>
+                    </template>
+                  </div>
+                  <div class="flex-actions">
+                    <button @click="saveFlujoBot()" :disabled="flujoBotSaving" class="btn-primary"><span x-show="!flujoBotSaving">Guardar</span><span x-show="flujoBotSaving">Guardando...</span></button>
+                    <button @click="closeFlujoBotModal()" class="btn-secondary">Cancelar</button>
+                  </div>
+                  <template x-if="flujoBotMsg"><div class="mt-4" :class="flujoBotMsgOk ? 'alert-ok' : 'alert-err'" x-text="flujoBotMsg"></div></template>
+                </div>
+              </div>
+              <div x-show="botWarningModal" class="modal-overlay" @click.self="botWarningModal = false">
+                <div class="modal-box" style="max-width: 420px;">
+                  <h3 class="modal-title">Atención</h3>
+                  <p class="text-sm mb-4" style="color:var(--text-soft);">No hay ningún flujo de bot activo. Las nuevas conversaciones no tendrán respuesta automática del bot.</p>
+                  <button @click="botWarningModal = false" class="btn-primary" style="width:100%;">Entendido</button>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- ===== AGENTES ===== -->
+          <template x-if="tab==='agentes'">
+            <div class="wa-container">
+              <div class="flex h-full w-full">
+                <div class="wa-list">
+                  <div class="wa-filters">
+                    <button @click="convFilter=''; loadConvs()" :class="convFilter==='' ? 'wa-filter-pill-active' : 'wa-filter-pill'" class="wa-filter-pill">Todas</button>
+                    <button @click="convFilter='pendiente'; loadConvs()" :class="convFilter==='pendiente' ? 'wa-filter-pill-active' : 'wa-filter-pill'" class="wa-filter-pill">Sin atender</button>
+                  </div>
+                  <div class="flex-1 min-h-0 overflow-y-auto wa-scroll">
+                    <template x-for="c in convs" :key="c.id">
+                      <div @click="selectConv(c.id)" :class="selectedConvId===c.id ? 'wa-conv-active' : ''" class="wa-conv" :style="c.contacto_deleted ? 'background: var(--bg-hover); opacity: 0.6;' : ''">
+                        <div class="wa-conv-avatar" :style="'background:' + avatarColor(c.contacto_nombre || c.wa_id) + ';color:#fff'" x-text="avatarIniciales(c.contacto_nombre || c.wa_id)"></div>
+                        <div class="wa-conv-body">
+                          <div class="wa-conv-top">
+                            <span class="wa-conv-name" x-text="c.contacto_nombre || c.wa_id"></span>
+                            <div class="flex items-center gap-2">
+                              <span x-show="c.sin_leer > 0" class="wa-unread" x-text="c.sin_leer"></span>
+                              <svg x-show="c.contacto_deleted" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:16px;height:16px;color:var(--danger);flex-shrink:0;"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                            </div>
+                          </div>
+                          <div class="wa-conv-lastmsg" x-text="c.ultimo_mensaje"></div>
+                          <div class="wa-conv-takenby" x-show="c.agente_id" x-text="'🔒 ' + (c.agente_username || 'tomada')"></div>
+                        </div>
+                      </div>
+                    </template>
+                    <p x-show="convs.length===0" class="text-center text-sm p-8" style="color: var(--text-faint);">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5" style="width:48px;height:48px;margin:0 auto 12px;display:block;"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+                      No hay conversaciones.
+                    </p>
+                  </div>
+                </div>
+                <div class="wa-chat" x-show="selectedConv">
+                  <template x-if="selectedConv">
+                    <div class="wa-chat">
+                      <div class="wa-chat-header">
+                        <div class="wa-chat-header-left">
+                          <button @click="selectedConv = null; selectedConvId = null; chatMenuOpen = false" class="wa-back-btn">←</button>
+                          <div class="wa-chat-avatar" :style="'background:' + avatarColor(selectedConv.contacto?.nombre || selectedConv.contacto?.wa_id) + ';color:#fff'" x-text="avatarIniciales(selectedConv.contacto?.nombre || selectedConv.contacto?.wa_id)"></div>
+                          <div>
+                            <div class="wa-chat-name" x-text="selectedConv.contacto?.nombre || selectedConv.contacto?.wa_id"></div>
+                            <div class="wa-chat-number" x-text="selectedConv.contacto?.wa_id"></div>
+                            <div class="wa-chat-takenby" x-show="selectedConv.conversacion?.agente_id && selectedConv.conversacion?.agente_id !== user.id" x-text="'🔒 Tomada por ' + (selectedConv.conversacion?.agente_username || 'otro agente')"></div>
+                          </div>
+                        </div>
+                        <button class="wa-take-btn" @click="tomarConv()" x-show="selectedConv.conversacion?.modo==='humano' && (!selectedConv.conversacion?.agente_id || selectedConv.conversacion?.agente_id !== user.id)">
+                          <span>Tomar</span>
+                        </button>
+                        <button class="wa-release-btn" @click="soltarConv()" x-show="selectedConv.conversacion?.modo==='humano' && selectedConv.conversacion?.agente_id === user.id">
+                          <span>Soltar</span>
+                        </button>
+                        <button class="wa-chat-gear" @click="chatMenuOpen = !chatMenuOpen">
+                          <svg fill="currentColor" viewBox="0 0 24 24" style="width:20px;height:20px;"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+                        </button>
+                        <div class="wa-chat-menu" x-show="chatMenuOpen" @click.outside="chatMenuOpen = false">
+                          <button x-show="selectedConv.contacto?.deleted" @click="restaurarContacto(); chatMenuOpen = false" class="wa-chat-menu-item">Agregar</button>
+                          <button x-show="selectedConv.conversacion?.modo==='humano'" @click="toggleIaConv(); chatMenuOpen = false" class="wa-chat-menu-item">Activar IA</button>
+                          <button x-show="selectedConv.conversacion?.modo==='ia'" @click="toggleIaConv(); chatMenuOpen = false" class="wa-chat-menu-item">Desactivar IA</button>
+                          <button @click="deleteConv(); chatMenuOpen = false" class="wa-chat-menu-item" style="color: var(--danger);">Eliminar conversación</button>
+                        </div>
+                      </div>
+                      <div class="wa-messages wa-scroll" x-ref="chatScroll">
+                        <template x-for="m in selectedConv.mensajes" :key="m.id">
+                          <div :class="m.direccion==='in' ? 'wa-bubble-in' : (m.origen==='ia' ? 'wa-bubble-ia' : 'wa-bubble-out')"
+                               :data-msg-id="m.id"
+                               :style="swipeOffset(m) ? 'transform: translateX(' + swipeOffset(m) + 'px); transition: none;' : ''"
+                               @contextmenu.prevent="openMsgContextMenu($event, m)"
+                               @touchstart="onTouchStart($event, m)"
+                               @touchmove="onTouchMove($event, m)"
+                               @touchend="onTouchEnd($event, m)">
+                            <template x-if="m.reply_to_msg">
+                              <div class="wa-reply-quote" @click.stop="scrollToMessage(m.reply_to_msg.id)">
+                                <div class="wa-reply-quote-bar"></div>
+                                <div class="wa-reply-quote-content">
+                                  <span class="wa-reply-quote-author" x-text="m.reply_to_msg.direccion==='in' ? (selectedConv.contacto?.nombre || 'Cliente') : 'Asesor'"></span>
+                                  <span class="wa-reply-quote-text" x-text="m.reply_to_msg.texto"></span>
+                                </div>
+                              </div>
+                            </template>
+                            <template x-if="m.forwarded">
+                              <div class="wa-forwarded-label">↻ Reenviado</div>
+                            </template>
+                            <template x-if="m.tipo==='image'">
+                              <div>
+                                <img :src="m.contenido?.url?.startsWith('/uploads/') ? m.contenido.url : '/api/conversaciones/media/' + m.id + '?t=' + api.getToken()" style="max-width:280px;max-height:280px;border-radius:8px;margin-bottom:4px;object-fit:cover;cursor:pointer;" alt="imagen" @click="window.open($event.target.src, '_blank')" />
+                                <p class="wa-bubble-text" x-show="m.contenido?.caption || m.contenido?.text" x-text="m.contenido?.caption || m.contenido?.text"></p>
+                              </div>
+                            </template>
+                            <template x-if="m.tipo==='audio'">
+                              <div>
+                                <audio controls style="max-width:100%;height:36px;">
+                                  <source :src="m.contenido?.url?.startsWith('/uploads/') ? m.contenido.url : '/api/conversaciones/media/' + m.id + '?t=' + api.getToken()" :type="m.contenido?.mimetype || 'audio/ogg'">
+                                </audio>
+                                <p class="wa-bubble-text" x-show="m.contenido?.caption" x-text="m.contenido?.caption"></p>
+                              </div>
+                            </template>
+                            <template x-if="m.tipo==='document'">
+                              <div>
+                                <a :href="m.contenido?.url?.startsWith('/uploads/') ? m.contenido.url : '/api/conversaciones/media/' + m.id + '?t=' + api.getToken()" target="_blank" style="display:flex;align-items:center;gap:8px;color:inherit;text-decoration:none;">
+                                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:20px;height:20px;flex-shrink:0;"><path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 2v6h6"/></svg>
+                                  <span class="wa-bubble-text" x-text="m.contenido?.filename || m.contenido?.text || 'Documento'"></span>
+                                </a>
+                                <p class="wa-bubble-text" x-show="m.contenido?.caption" x-text="m.contenido?.caption"></p>
+                              </div>
+                            </template>
+                            <template x-if="m.tipo==='video'">
+                              <div>
+                                <video controls style="max-width:100%;border-radius:8px;margin-bottom:4px;">
+                                  <source :src="m.contenido?.url?.startsWith('/uploads/') ? m.contenido.url : '/api/conversaciones/media/' + m.id + '?t=' + api.getToken()">
+                                </video>
+                                <p class="wa-bubble-text" x-show="m.contenido?.caption" x-text="m.contenido?.caption"></p>
+                              </div>
+                            </template>
+                            <template x-if="m.tipo==='location'">
+                              <p class="wa-bubble-text">📍 <a :href="'https://maps.google.com/?q=' + (m.contenido?.lat||'') + ',' + (m.contenido?.lng||'')" target="_blank" style="color:inherit;">Ubicacion</a></p>
+                            </template>
+                            <template x-if="['text','interactive','button','template'].includes(m.tipo)">
+                              <p class="wa-bubble-text" x-text="m.contenido?.text || m.contenido?.body || m.contenido?.caption || m.contenido?.title || '[' + m.tipo + ']'"></p>
+                            </template>
+                            <div class="wa-bubble-meta">
+                              <span x-text="new Date(m.timestamp).toLocaleTimeString('es', {hour:'2-digit',minute:'2-digit'})"></span>
+                              <span x-show="m.direccion==='out'" :class="m.status==='read' ? 'wa-check-read' : ''" x-text="m.status==='read' ? '✓✓' : m.status==='delivered' ? '✓✓' : m.status==='sent' ? '✓' : m.status==='failed' ? '✗' : ''"></span>
+                              <span x-show="m.origen==='bot'">🤖</span>
+                              <span x-show="m.origen==='ia'">🧠</span>
+                              <span x-show="m.origen==='humano'">👤</span>
+                            </div>
+                          </div>
+                        </template>
+                      </div>
+
+                      <!-- Context menu de mensaje (PC: right-click) -->
+                      <div x-show="msgContextMenu.open" @click.outside="closeMsgContextMenu()" class="wa-msg-context-menu" :style="'top:' + msgContextMenu.y + 'px; left:' + msgContextMenu.x + 'px'">
+                        <button @click="startReply(getMsgById(msgContextMenu.messageId))" class="wa-msg-context-item">
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:18px;height:18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                          <span>Responder</span>
+                        </button>
+                        <button @click="openForwardModal(getMsgById(msgContextMenu.messageId))" class="wa-msg-context-item">
+                          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:18px;height:18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 11l18-8-8 18-2-8-8-2z"/></svg>
+                          <span>Reenviar</span>
+                        </button>
+                      </div>
+
+                      <!-- Barra de reply (cita sobre el input) -->
+                      <template x-if="replyToMsg">
+                        <div class="wa-reply-bar">
+                          <div class="wa-reply-bar-info">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:18px;height:18px;flex-shrink:0;color:var(--accent);"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                            <div class="wa-reply-bar-content">
+                              <span class="wa-reply-bar-author" x-text="replyToMsg.direccion==='in' ? (selectedConv.contacto?.nombre || 'Cliente') : 'Asesor'"></span>
+                              <span class="wa-reply-bar-text" x-text="getMsgPreview(replyToMsg)"></span>
+                            </div>
+                          </div>
+                          <button @click="cancelReply()" class="wa-reply-bar-close">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:18px;height:18px;"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                          </button>
+                        </div>
+                      </template>
+
+                      <div class="wa-msg-bar">
+                        <template x-if="ventanaExpirada">
+                          <div class="wa-warning">
+                            <span>Ventana de 24h expirada. Usa una plantilla para reabrir.</span>
+                            <input x-model="templateName" class="wa-msg-input" style="width: 160px; flex: none;" placeholder="nombre_template" />
+                            <button @click="enviarTemplate()" class="wa-btn">Enviar plantilla</button>
+                          </div>
+                        </template>
+                        <template x-if="selectedConv.conversacion?.modo==='humano' && selectedConv.conversacion?.agente_id && selectedConv.conversacion?.agente_id !== user.id">
+                          <div class="wa-locked-bar">
+                            <span>🔒 Esta conversación está siendo atendida por <strong x-text="selectedConv.conversacion?.agente_username || 'otro agente'"></strong></span>
+                          </div>
+                        </template>
+                        <template x-if="selectedConv.conversacion?.modo==='humano' && (!selectedConv.conversacion?.agente_id || selectedConv.conversacion?.agente_id === user.id)">
+                          <div class="flex items-center w-full gap-2">
+                            <button class="wa-clip-btn" @click="$refs.chatFile.click()" x-show="chatFilePending.length===0">
+                              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:22px;height:22px;"><path stroke-linecap="round" stroke-linejoin="round" d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                            </button>
+                            <input type="file" multiple x-ref="chatFile" @change="previewChatFile($event)" accept=".pdf,.docx,.png,.jpg,.jpeg,.webp,.mp3,.ogg,.wav" style="display:none;" />
+                            <input x-model="manualMsg" @keydown.enter.prevent="sendManual()" class="wa-msg-input" placeholder="Escribe un mensaje..." x-ref="chatInput" />
+                            <button class="wa-send-icon-btn" @click="sendManual()" x-show="manualMsg.trim()">
+                              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:22px;height:22px;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 11l18-8-8 18-2-8-8-2z"/></svg>
+                            </button>
+                          </div>
+                        </template>
+                      </div>
+                      <p x-show="selectedConv.conversacion?.modo!=='humano'" class="wa-hint" style="padding: 0 16px 8px; background: var(--bg-main); margin: 0;">La conversación está siendo manejada por <span x-text="selectedConv.conversacion?.modo==='bot' ? 'bot' : 'IA'"></span>. Espera a que escale a humano para responder.</p>
+
+                      <!-- Overlay de vista previa de archivos (estilo WhatsApp) -->
+                      <div class="wa-attach-overlay" x-show="chatFilePending.length > 0" x-transition.duration.200ms>
+                        <div class="wa-attach-header">
+                          <button @click="cancelAttach()" class="wa-attach-close">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                          </button>
+                          <span class="wa-attach-title" x-text="chatFilePending.length === 1 ? 'Enviar archivo' : 'Enviar ' + chatFilePending.length + ' archivos'"></span>
+                          <button @click="$refs.chatFile.click()" class="wa-attach-add-btn">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+                          </button>
+                        </div>
+                        <div class="wa-attach-preview">
+                          <!-- Flecha izquierda -->
+                          <button @click="prevFile()" class="wa-attach-arrow wa-attach-arrow-left" x-show="chatFileIndex > 0">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:28px;height:28px;"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+                          </button>
+                          <!-- Vista previa del archivo actual -->
+                          <div class="wa-attach-current">
+                            <button @click="removeAttachFile(chatFileIndex)" class="wa-attach-item-remove">
+                              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                            <template x-if="chatFilePending[chatFileIndex] && chatFilePending[chatFileIndex].type.startsWith('image/')">
+                              <img :src="chatFilePreviewUrls[chatFileIndex]" class="wa-attach-img" alt="preview" />
+                            </template>
+                            <template x-if="chatFilePending[chatFileIndex] && chatFilePending[chatFileIndex].type.startsWith('video/')">
+                              <video :src="chatFilePreviewUrls[chatFileIndex]" controls class="wa-attach-video"></video>
+                            </template>
+                            <template x-if="chatFilePending[chatFileIndex] && chatFilePending[chatFileIndex].type.startsWith('audio/')">
+                              <div class="wa-attach-file">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5" style="width:64px;height:64px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 18V5l12-2v13M9 18a3 3 0 11-6 0 3 3 0 016 0zm12-3a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                <span class="wa-attach-file-name" x-text="chatFilePending[chatFileIndex]?.name"></span>
+                              </div>
+                            </template>
+                            <template x-if="chatFilePending[chatFileIndex] && !chatFilePending[chatFileIndex].type.startsWith('image/') && !chatFilePending[chatFileIndex].type.startsWith('video/') && !chatFilePending[chatFileIndex].type.startsWith('audio/')">
+                              <div class="wa-attach-file">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5" style="width:64px;height:64px;"><path stroke-linecap="round" stroke-linejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path stroke-linecap="round" stroke-linejoin="round" d="M14 2v6h6"/></svg>
+                                <span class="wa-attach-file-name" x-text="chatFilePending[chatFileIndex]?.name"></span>
+                              </div>
+                            </template>
+                          </div>
+                          <!-- Flecha derecha -->
+                          <button @click="nextFile()" class="wa-attach-arrow wa-attach-arrow-right" x-show="chatFileIndex < chatFilePending.length - 1">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:28px;height:28px;"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                          </button>
+                          <!-- Contador -->
+                          <span class="wa-attach-counter" x-show="chatFilePending.length > 1" x-text="(chatFileIndex + 1) + '/' + chatFilePending.length"></span>
+                        </div>
+                        <div class="wa-attach-footer">
+                          <input x-model="manualMsg" @keydown.enter.prevent="sendManual()" class="wa-msg-input" placeholder="Escribe un mensaje..." />
+                          <button class="wa-send-icon-btn" @click="sendManual()">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:22px;height:22px;"><path stroke-linecap="round" stroke-linejoin="round" d="M3 11l18-8-8 18-2-8-8-2z"/></svg>
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- Modal de reenviar mensajes -->
+                      <div x-show="forwardModal.open" class="wa-forward-overlay" x-transition.duration.200ms>
+                        <div class="wa-forward-modal">
+                          <div class="wa-forward-header">
+                            <button @click="closeForwardModal()" class="wa-forward-close">
+                              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:20px;height:20px;"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                            <span class="wa-forward-title">Reenviar mensaje(s)</span>
+                          </div>
+
+                          <!-- Mensajes seleccionados -->
+                          <div class="wa-forward-section">
+                            <div class="wa-forward-section-title">Mensaje(s) a reenviar</div>
+                            <div class="wa-forward-msgs">
+                              <template x-for="(fm, idx) in forwardModal.messages" :key="fm.id">
+                                <div class="wa-forward-msg-item">
+                                  <span class="wa-forward-msg-text" x-text="getMsgPreview(fm)"></span>
+                                  <button @click="removeForwardMessage(idx)" class="wa-forward-msg-remove">
+                                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+                                  </button>
+                                </div>
+                              </template>
+                            </div>
+                          </div>
+
+                          <!-- Buscador de contactos -->
+                          <div class="wa-forward-search-wrap">
+                            <input x-model="forwardModal.search" @input.debounce.300ms="searchForwardContactos()" class="wa-forward-search" placeholder="Buscar contacto..." />
+                          </div>
+
+                          <!-- Lista de contactos -->
+                          <div class="wa-forward-contactos wa-scroll">
+                            <template x-for="c in forwardModal.contactos" :key="c.id">
+                              <div @click="toggleForwardContacto(c.id)" :class="forwardModal.selectedContactos.includes(c.id) ? 'wa-forward-contact-active' : ''" class="wa-forward-contact">
+                                <div class="wa-forward-contact-check" :style="forwardModal.selectedContactos.includes(c.id) ? 'background:var(--accent);border-color:var(--accent);' : ''">
+                                  <svg x-show="forwardModal.selectedContactos.includes(c.id)" fill="none" stroke="#fff" viewBox="0 0 24 24" stroke-width="3" style="width:14px;height:14px;"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                                <div class="wa-forward-contact-avatar" :style="'background:' + avatarColor(c.nombre || c.wa_id) + ';color:#fff'" x-text="avatarIniciales(c.nombre || c.wa_id)"></div>
+                                <div>
+                                  <div class="wa-forward-contact-name" x-text="c.nombre || c.wa_id"></div>
+                                  <div class="wa-forward-contact-num" x-text="c.wa_id"></div>
+                                </div>
+                              </div>
+                            </template>
+                            <p x-show="forwardModal.contactos.length===0" class="wa-forward-empty">No hay contactos.</p>
+                          </div>
+
+                          <!-- Resultado -->
+                          <template x-if="forwardModal.result">
+                            <div class="wa-forward-result">
+                              <span x-text="forwardModal.result.enviados + ' enviados, ' + forwardModal.result.fallidos + ' fallidos'"></span>
+                              <button @click="closeForwardModal()" class="wa-btn" style="margin-left:auto;">Cerrar</button>
+                            </div>
+                          </template>
+
+                          <!-- Boton enviar -->
+                          <div class="wa-forward-footer">
+                            <span class="wa-forward-count" x-text="forwardModal.selectedContactos.length + ' contacto(s) seleccionado(s)'"></span>
+                            <button @click="executeForward()" :disabled="forwardModal.sending || forwardModal.messages.length===0 || forwardModal.selectedContactos.length===0" class="wa-send-btn">
+                              <span x-show="!forwardModal.sending">Reenviar</span>
+                              <span x-show="forwardModal.sending">Enviando...</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                  <div x-show="!selectedConv" class="wa-empty">
+                    <div style="text-align:center;">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5" style="width:56px;height:56px;margin:0 auto 12px;display:block;"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10.5A1.5 1.5 0 016.5 12H8m0-1.5A1.5 1.5 0 019.5 10H8m8 0a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 11-3 0m-2 5.5h6M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                      Selecciona una conversación
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- ===== CONTACTOS ===== -->
+          <template x-if="tab==='contactos'">
+            <div class="card">
+              <div class="flex items-center justify-between mb-6">
+                <h2 class="card-title" style="margin:0;">Contactos</h2>
+                <input x-model="contactoSearch" @input.debounce.300ms="loadContactos()" class="input" style="width: 260px;" placeholder="Buscar..." />
+              </div>
+              <div class="overflow-x-auto">
+                <table class="tbl">
+                  <thead><tr>
+                    <th @click="tblSort('tblContactos','nombre')" :class="tblContactos.sortCol==='nombre' ? 'th-sort th-sort-active' : 'th-sort'">Nombre <span class="th-sort-icon" x-text="tblContactos.sortCol==='nombre' ? (tblContactos.sortDir==='asc' ? '▲' : '▼') : '↕'"></span>
+                      <div class="th-filter" @click.stop><input type="text" placeholder="Filtrar..." @input="tblFilter('tblContactos','nombre',$event.target.value)" /></div>
+                    </th>
+                    <th @click="tblSort('tblContactos','wa_id')" :class="tblContactos.sortCol==='wa_id' ? 'th-sort th-sort-active' : 'th-sort'">WhatsApp <span class="th-sort-icon" x-text="tblContactos.sortCol==='wa_id' ? (tblContactos.sortDir==='asc' ? '▲' : '▼') : '↕'"></span>
+                      <div class="th-filter" @click.stop><input type="text" placeholder="Filtrar..." @input="tblFilter('tblContactos','wa_id',$event.target.value)" /></div>
+                    </th>
+                    <th>Etiquetas</th><th>Notas</th>
+                    <th @click="tblSort('tblContactos','created_at')" :class="tblContactos.sortCol==='created_at' ? 'th-sort th-sort-active' : 'th-sort'">Creado <span class="th-sort-icon" x-text="tblContactos.sortCol==='created_at' ? (tblContactos.sortDir==='asc' ? '▲' : '▼') : '↕'"></span></th>
+                    <th></th>
+                  </tr></thead>
+                  <tbody>
+                    <template x-for="c in tblData('tblContactos',contactos).rows" :key="c.id">
+                      <tr>
+                        <td class="font-semibold" x-text="c.nombre || '-'"></td>
+                        <td x-text="c.wa_id"></td>
+                        <td><span class="text-sm" style="color: var(--text-soft);" x-text="(c.etiquetas||[]).join(', ')"></span></td>
+                        <td class="text-sm" style="color: var(--text-soft);" x-text="(c.notas||'').slice(0,30)"></td>
+                        <td class="text-sm" style="color: var(--text-faint);" x-text="new Date(c.created_at).toLocaleDateString('es')"></td>
+                        <td class="relative">
+                          <button @click.stop="userMenuOpen === ('contacto-'+c.id) ? userMenuOpen = null : userMenuOpen = ('contacto-'+c.id)" class="btn-ghost btn-sm">Opciones ▾</button>
+                          <template x-if="userMenuOpen === ('contacto-'+c.id)">
+                            <div class="dropdown" @click.outside="userMenuOpen = null">
+                              <button @click="editContacto(c); userMenuOpen = null" class="dropdown-item">Editar</button>
+                              <button @click="deleteContacto(c); userMenuOpen = null" class="dropdown-item dropdown-item-danger">Eliminar</button>
+                            </div>
+                          </template>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+              <div class="tbl-pagination">
+                <span class="tbl-page-info" x-text="'Mostrando ' + tblData('tblContactos',contactos).rows.length + ' de ' + tblData('tblContactos',contactos).total + ' registros'"></span>
+                <div class="tbl-page-controls">
+                  <select class="tbl-per-page" @change="tblPerPage('tblContactos',Number($event.target.value))"><option value="10">10 por pagina</option><option value="25">25 por pagina</option><option value="50">50 por pagina</option><option value="100">100 por pagina</option></select>
+                  <button class="tbl-page-btn" @click="tblPage('tblContactos','prev')" :disabled="tblContactos.page===1">‹</button>
+                  <span class="tbl-page-info" x-text="tblContactos.page + ' / ' + tblData('tblContactos',contactos).totalPages"></span>
+                  <button class="tbl-page-btn" @click="tblPage('tblContactos','next')" :disabled="tblContactos.page>=tblData('tblContactos',contactos).totalPages">›</button>
+                </div>
+              </div>
+              <template x-if="contactoEdit">
+                <div class="modal-overlay" @click.self="contactoEdit=null">
+                  <div class="modal-box">
+                    <h3 class="modal-title">Editar contacto</h3>
+                    <div class="field"><label class="field-label">Nombre</label><input x-model="contactoEditName" class="input" placeholder="Nombre del contacto" /></div>
+                    <div class="field"><label class="field-label">Etiquetas (separadas por coma)</label><input x-model="contactoEditTags" class="input" /></div>
+                    <div class="field"><label class="field-label">Notas internas</label><textarea x-model="contactoEditNotas" rows="3" class="input"></textarea></div>
+                    <div class="flex gap-3">
+                      <button @click="saveContacto()" class="btn-primary flex-1">Guardar</button>
+                      <button @click="contactoEdit=null" class="btn-secondary">Cancelar</button>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- ===== METRICAS ===== -->
+          <template x-if="tab==='metricas'">
+            <div class="space-y-6">
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="metric-card"><p class="metric-label">Conversaciones hoy</p><p class="metric-value metric-navy" x-text="metricas.conversaciones_hoy || 0"></p></div>
+                <div class="metric-card"><p class="metric-label">Mensajes recibidos</p><p class="metric-value metric-blue" x-text="metricas.mensajes_recibidos_hoy || 0"></p></div>
+                <div class="metric-card"><p class="metric-label">Mensajes enviados</p><p class="metric-value metric-green" x-text="metricas.mensajes_enviados_hoy || 0"></p></div>
+                <div class="metric-card"><p class="metric-label">Tokens IA hoy</p><p class="metric-value metric-purple" x-text="metricas.tokens_ia_hoy || 0"></p></div>
+              </div>
+              <div class="grid md:grid-cols-2 gap-6">
+                <div class="card">
+                  <h3 class="card-title">Respuestas por origen (%)</h3>
+                  <div class="space-y-4">
+                    <div><div class="flex justify-between text-sm mb-2"><span class="font-medium">Bot</span><span class="font-semibold" x-text="(metricas.porcentajes?.bot||0) + '%'"></span></div><div class="progress-track"><div class="progress-fill" style="background: var(--accent);" :style="'width:' + (metricas.porcentajes?.bot||0) + '%'"></div></div></div>
+                    <div><div class="flex justify-between text-sm mb-2"><span class="font-medium">IA</span><span class="font-semibold" x-text="(metricas.porcentajes?.ia||0) + '%'"></span></div><div class="progress-track"><div class="progress-fill" style="background: #7c3aed;" :style="'width:' + (metricas.porcentajes?.ia||0) + '%'"></div></div></div>
+                    <div><div class="flex justify-between text-sm mb-2"><span class="font-medium">Humano</span><span class="font-semibold" x-text="(metricas.porcentajes?.humano||0) + '%'"></span></div><div class="progress-track"><div class="progress-fill" style="background: var(--navy);" :style="'width:' + (metricas.porcentajes?.humano||0) + '%'"></div></div></div>
+                  </div>
+                </div>
+                <div class="card">
+                  <h3 class="card-title">Conversaciones activas por modo</h3>
+                  <div class="grid grid-cols-3 gap-3 text-center">
+                    <div class="p-4 rounded-lg" style="background: #eff6ff;"><p class="text-2xl font-bold" style="color: var(--accent);" x-text="metricas.conversaciones_por_modo?.bot || 0"></p><p class="text-xs mt-1" style="color: var(--text-soft);">Bot</p></div>
+                    <div class="p-4 rounded-lg" style="background: #f5f3ff;"><p class="text-2xl font-bold" style="color: #7c3aed;" x-text="metricas.conversaciones_por_modo?.ia || 0"></p><p class="text-xs mt-1" style="color: var(--text-soft);">IA</p></div>
+                    <div class="p-4 rounded-lg" style="background: #fffbeb;"><p class="text-2xl font-bold" style="color: #92400e;" x-text="metricas.conversaciones_por_modo?.humano || 0"></p><p class="text-xs mt-1" style="color: var(--text-soft);">Humano</p></div>
+                  </div>
+                  <div class="mt-4 p-3 rounded-lg text-center" style="background: #fee2e2;" x-show="metricas.conversaciones_pendientes > 0">
+                    <p class="font-bold" style="color: var(--danger);" x-text="metricas.conversaciones_pendientes + ' conversación(es) esperando agente'"></p>
+                  </div>
+                </div>
+              </div>
+              <div class="card">
+                <h3 class="card-title">Consumo de tokens IA (últimos 7 días)</h3>
+                <div class="overflow-x-auto">
+                <table class="tbl">
+                  <thead><tr><th>Día</th><th>Prompt tokens</th><th>Completion tokens</th><th>Total</th><th>Llamadas</th></tr></thead>
+                  <tbody>
+                    <template x-for="t in (metricas.tokens_ia_por_dia || [])" :key="t.dia">
+                      <tr><td class="font-semibold" x-text="t.dia"></td><td x-text="t.prompt_tokens"></td><td x-text="t.completion_tokens"></td><td class="font-bold" x-text="t.total_tokens"></td><td x-text="t.llamadas"></td></tr>
+                    </template>
+                  </tbody>
+                </table>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          <!-- ===== USUARIOS ===== -->
+          <template x-if="tab==='usuarios'">
+            <div class="card">
+              <div class="flex items-center justify-between mb-6">
+                <h2 class="card-title" style="margin:0;">Gestión de usuarios</h2>
+                <button @click="openCreateUser()" class="btn-primary">+ Crear usuario</button>
+              </div>
+              <div class="overflow-x-auto mb-2">
+                <table class="tbl">
+                  <thead><tr>
+                    <th @click="tblSort('tblUsuarios','username')" :class="tblUsuarios.sortCol==='username' ? 'th-sort th-sort-active' : 'th-sort'">Usuario <span class="th-sort-icon" x-text="tblUsuarios.sortCol==='username' ? (tblUsuarios.sortDir==='asc' ? '▲' : '▼') : '↕'"></span>
+                      <div class="th-filter" @click.stop><input type="text" placeholder="Filtrar..." @input="tblFilter('tblUsuarios','username',$event.target.value)" /></div>
+                    </th>
+                    <th @click="tblSort('tblUsuarios','nombre')" :class="tblUsuarios.sortCol==='nombre' ? 'th-sort th-sort-active' : 'th-sort'">Nombre <span class="th-sort-icon" x-text="tblUsuarios.sortCol==='nombre' ? (tblUsuarios.sortDir==='asc' ? '▲' : '▼') : '↕'"></span>
+                      <div class="th-filter" @click.stop><input type="text" placeholder="Filtrar..." @input="tblFilter('tblUsuarios','nombre',$event.target.value)" /></div>
+                    </th>
+                    <th @click="tblSort('tblUsuarios','role')" :class="tblUsuarios.sortCol==='role' ? 'th-sort th-sort-active' : 'th-sort'">Rol <span class="th-sort-icon" x-text="tblUsuarios.sortCol==='role' ? (tblUsuarios.sortDir==='asc' ? '▲' : '▼') : '↕'"></span>
+                      <div class="th-filter" @click.stop><select @change="tblFilter('tblUsuarios','role',$event.target.value)"><option value="">Todos</option><option value="admin">admin</option><option value="agente">agente</option></select></div>
+                    </th>
+                    <th>Activo</th><th style="text-align:right;">Acciones</th>
+                  </tr></thead>
+                  <tbody>
+                    <template x-for="u in tblData('tblUsuarios',usuarios).rows" :key="u.id">
+                      <tr>
+                        <td class="font-semibold" x-text="u.username"></td>
+                        <td x-text="u.nombre || '-'"></td>
+                        <td><span class="badge" :class="u.role==='admin' ? 'badge-admin' : 'badge-agent'" x-text="u.role"></span></td>
+                        <td><span class="flex items-center gap-2"><span class="status-dot" :class="u.activo ? 'status-dot-ok' : 'status-dot-no'"></span><span class="text-sm font-medium" :style="u.activo ? 'color: var(--success)' : 'color: var(--danger)'" x-text="u.activo ? 'Sí' : 'No'"></span></span></td>
+                        <td style="text-align:right;" class="relative">
+                          <button @click.stop="userMenuOpen === u.id ? userMenuOpen = null : userMenuOpen = u.id" class="btn-ghost btn-sm">Opciones ▾</button>
+                          <template x-if="userMenuOpen === u.id">
+                            <div class="dropdown" @click.outside="userMenuOpen = null">
+                              <button @click="editUser(u); userMenuOpen = null" class="dropdown-item">Editar</button>
+                              <button @click="toggleUserActivo(u); userMenuOpen = null" class="dropdown-item" x-text="u.activo ? 'Desactivar' : 'Activar'"></button>
+                              <button x-show="u.id !== user.id" @click="deleteUser(u); userMenuOpen = null" class="dropdown-item dropdown-item-danger">Eliminar</button>
+                            </div>
+                          </template>
+                        </td>
+                      </tr>
+                    </template>
+                  </tbody>
+                </table>
+              </div>
+              <div class="tbl-pagination">
+                <span class="tbl-page-info" x-text="'Mostrando ' + tblData('tblUsuarios',usuarios).rows.length + ' de ' + tblData('tblUsuarios',usuarios).total + ' registros'"></span>
+                <div class="tbl-page-controls">
+                  <select class="tbl-per-page" @change="tblPerPage('tblUsuarios',Number($event.target.value))"><option value="10">10 por pagina</option><option value="25">25 por pagina</option><option value="50">50 por pagina</option><option value="100">100 por pagina</option></select>
+                  <button class="tbl-page-btn" @click="tblPage('tblUsuarios','prev')" :disabled="tblUsuarios.page===1">‹</button>
+                  <span class="tbl-page-info" x-text="tblUsuarios.page + ' / ' + tblData('tblUsuarios',usuarios).totalPages"></span>
+                  <button class="tbl-page-btn" @click="tblPage('tblUsuarios','next')" :disabled="tblUsuarios.page>=tblData('tblUsuarios',usuarios).totalPages">›</button>
+                </div>
+              </div>
+              <template x-if="userCreateOpen">
+                <div class="modal-overlay" @click.self="userCreateOpen=false">
+                  <div class="modal-box">
+                    <h3 class="modal-title">Crear usuario</h3>
+                    <div class="field"><label class="field-label">Usuario</label><input x-model="newUser.username" class="input" placeholder="Usuario" /></div>
+                    <div class="field"><label class="field-label">Nombre</label><input x-model="newUser.nombre" class="input" placeholder="Nombre" /></div>
+                    <div class="field"><label class="field-label">Contraseña</label><div class="input-group"><input x-model="newUser.password" :type="showCreatePass ? 'text' : 'password'" class="input" placeholder="Contraseña" autocomplete="new-password" /><button type="button" @click="showCreatePass=!showCreatePass" class="btn-ghost btn-sm" x-text="showCreatePass ? 'Ocultar' : 'Ver'"></button></div></div>
+                    <div class="field"><label class="field-label">Rol</label><select x-model="newUser.role" class="input"><option value="agente">Agente</option><option value="admin">Admin</option></select></div>
+                    <div class="flex gap-3"><button @click="createUser()" class="btn-primary flex-1">Crear</button><button @click="userCreateOpen=false" class="btn-secondary">Cancelar</button></div>
+                  </div>
+                </div>
+              </template>
+              <template x-if="userEdit">
+                <div class="modal-overlay" @click.self="userEdit=null">
+                  <div class="modal-box">
+                    <h3 class="modal-title">Editar usuario</h3>
+                    <div class="field"><label class="field-label">Usuario</label><input x-model="userEditForm.username" class="input" /></div>
+                    <div class="field"><label class="field-label">Nombre</label><input x-model="userEditForm.nombre" class="input" /></div>
+                    <div class="field"><label class="field-label">Rol</label><select x-model="userEditForm.role" class="input"><option value="agente">Agente</option><option value="admin">Admin</option></select></div>
+                    <div class="field"><label class="field-label">Nueva contraseña <span class="text-faint font-normal">(opcional)</span></label><div class="input-group"><input x-model="userEditForm.password" :type="showEditPass ? 'text' : 'password'" class="input" placeholder="Dejar vacío para conservar" autocomplete="new-password" /><button type="button" @click="showEditPass=!showEditPass" class="btn-ghost btn-sm" x-text="showEditPass ? 'Ocultar' : 'Ver'"></button></div><p class="field-help">La contraseña actual esta cifrada y no se puede mostrar. Escribe una nueva para reemplazarla.</p></div>
+                    <div class="flex gap-3"><button @click="saveEditUser()" class="btn-primary flex-1">Guardar cambios</button><button @click="userEdit=null" class="btn-secondary">Cancelar</button></div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- ===== NOTIFICACIONES ===== -->
+          <template x-if="tab==='notificaciones'">
+            <div class="space-y-6">
+              <template x-if="subtab==='notif-global'">
+              <div class="card">
+                <h2 class="card-title">Configuracion general de notificaciones</h2>
+                <div class="form-grid">
+                  <div class="field"><label class="field-label">URL del software (editable)</label><input x-model="notifGlobal.url_software" class="input" placeholder="https://chat.lykos.mx" /><p class="field-help">Se incluye en las notificaciones. Cambialo si el dominio cambia.</p></div>
+                  <div class="field"><label class="field-label">Mensaje default</label><input x-model="notifGlobal.mensaje_default" class="input" placeholder="Tienes un nuevo mensaje. Ingresa a {url}" /><p class="field-help">Usa <code>{url}</code> para insertar la URL del software.</p></div>
+                </div>
+                <h3 class="card-subtitle" style="margin-top: 20px;">Configuracion Email (SMTP)</h3>
+                <div class="form-grid">
+                  <div class="field"><label class="field-label">SMTP Host</label><input x-model="notifGlobal.smtp_host" class="input" placeholder="smtp.gmail.com" /></div>
+                  <div class="field"><label class="field-label">SMTP Puerto</label><input x-model.number="notifGlobal.smtp_port" type="number" class="input" placeholder="587" /></div>
+                  <div class="field"><label class="field-label">SMTP Usuario</label><input x-model="notifGlobal.smtp_user" class="input" placeholder="user@example.com" /></div>
+                  <div class="field"><label class="field-label">SMTP Password</label><input x-model="notifGlobal.smtp_pass" type="password" class="input" :placeholder="notifGlobal.has_smtp_pass ? 'Guardado (escribe para reemplazar)' : 'Password'" /></div>
+                  <div class="field"><label class="field-label">Email remitente</label><input x-model="notifGlobal.smtp_from" class="input" placeholder="notificaciones@lykos.mx" /></div>
+                  <div class="field"><label class="field-label">SMTP activado</label><div class="flex items-center gap-2"><label class="switch"><input type="checkbox" x-model="notifGlobal.smtp_activado" /><span class="slider"></span></label><span class="text-sm" x-text="notifGlobal.smtp_activado ? 'SI' : 'NO'"></span></div></div>
+                </div>
+                <div class="flex-actions"><button @click="saveNotifGlobal()" :disabled="notifSaving" class="btn-primary"><span x-show="!notifSaving">Guardar</span><span x-show="notifSaving">Guardando...</span></button></div>
+              </div>
+              </template>
+
+              <template x-if="subtab==='notif-usuarios'">
+              <div class="card">
+                <h2 class="card-title">Notificaciones por usuario</h2>
+                <div class="overflow-x-auto">
+                  <table class="tbl">
+                    <thead><tr>
+                      <th @click="tblSort('tblNotifUsuarios','username')" :class="tblNotifUsuarios.sortCol==='username' ? 'th-sort th-sort-active' : 'th-sort'">Usuario <span class="th-sort-icon" x-text="tblNotifUsuarios.sortCol==='username' ? (tblNotifUsuarios.sortDir==='asc' ? '▲' : '▼') : '↕'"></span>
+                        <div class="th-filter" @click.stop><input type="text" placeholder="Filtrar..." @input="tblFilter('tblNotifUsuarios','username',$event.target.value)" /></div>
+                      </th>
+                      <th @click="tblSort('tblNotifUsuarios','role')" :class="tblNotifUsuarios.sortCol==='role' ? 'th-sort th-sort-active' : 'th-sort'">Rol <span class="th-sort-icon" x-text="tblNotifUsuarios.sortCol==='role' ? (tblNotifUsuarios.sortDir==='asc' ? '▲' : '▼') : '↕'"></span>
+                        <div class="th-filter" @click.stop><select @change="tblFilter('tblNotifUsuarios','role',$event.target.value)"><option value="">Todos</option><option value="admin">admin</option><option value="agente">agente</option></select></div>
+                      </th>
+                      <th>Activar</th><th>Email</th><th>WhatsApp personal</th><th>Mensaje custom</th><th>Recurrencia</th><th>Intervalo (min)</th><th></th>
+                    </tr></thead>
+                    <tbody>
+                      <template x-for="u in tblData('tblNotifUsuarios',notifUsuarios).rows" :key="u.id || u.usuario_id">
+                        <tr>
+                          <td class="font-semibold" x-text="u.username"></td>
+                          <td><span class="badge" :class="u.role==='admin' ? 'badge-admin' : 'badge-agent'" x-text="u.role"></span></td>
+                          <td><label class="switch"><input type="checkbox" x-model="u.activado" @change="if(!u.activado) u.recurrencia_activada = false" /><span class="slider"></span></label></td>
+                          <td><input x-model="u.email" class="input" :disabled="!u.activado" placeholder="email@ejemplo.com" style="height:36px;" /></td>
+                          <td><input x-model="u.whatsapp_personal" class="input" :disabled="!u.activado" placeholder="522463118068" style="height:36px;" /></td>
+                          <td><input x-model="u.mensaje_personalizado" class="input" :disabled="!u.activado" placeholder="(usa default)" style="height:36px;" /></td>
+                          <td><label class="switch"><input type="checkbox" x-model="u.recurrencia_activada" :disabled="!u.activado" /><span class="slider"></span></label></td>
+                          <td><input x-model.number="u.recurrencia_minutos" type="number" class="input" :disabled="!u.activado || !u.recurrencia_activada" style="height:36px; width:70px;" /></td>
+                          <td><button @click="saveNotifUsuario(u)" class="btn-ghost btn-sm">Guardar</button></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="tbl-pagination">
+                  <span class="tbl-page-info" x-text="'Mostrando ' + tblData('tblNotifUsuarios',notifUsuarios).rows.length + ' de ' + tblData('tblNotifUsuarios',notifUsuarios).total + ' registros'"></span>
+                  <div class="tbl-page-controls">
+                    <select class="tbl-per-page" @change="tblPerPage('tblNotifUsuarios',Number($event.target.value))"><option value="10">10 por pagina</option><option value="25">25 por pagina</option><option value="50">50 por pagina</option><option value="100">100 por pagina</option></select>
+                    <button class="tbl-page-btn" @click="tblPage('tblNotifUsuarios','prev')" :disabled="tblNotifUsuarios.page===1">‹</button>
+                    <span class="tbl-page-info" x-text="tblNotifUsuarios.page + ' / ' + tblData('tblNotifUsuarios',notifUsuarios).totalPages"></span>
+                    <button class="tbl-page-btn" @click="tblPage('tblNotifUsuarios','next')" :disabled="tblNotifUsuarios.page>=tblData('tblNotifUsuarios',notifUsuarios).totalPages">›</button>
+                  </div>
+                </div>
+                <p class="field-help" style="margin-top: 12px;"><strong>Recurrencia:</strong> envia notificaciones repetidas cada N minutos hasta que el empleado inicie sesion en el software. La notificacion incluye la URL del software para que el empleado ingrese y detenga las notificaciones.</p>
+              </div>
+              </template>
+
+              <template x-if="subtab==='notif-log'">
+              <div class="card">
+                <h2 class="card-title">Historial de notificaciones enviadas</h2>
+                <div class="overflow-x-auto">
+                  <table class="tbl">
+                    <thead><tr>
+                      <th @click="tblSort('tblNotifLog','created_at')" :class="tblNotifLog.sortCol==='created_at' ? 'th-sort th-sort-active' : 'th-sort'">Fecha <span class="th-sort-icon" x-text="tblNotifLog.sortCol==='created_at' ? (tblNotifLog.sortDir==='asc' ? '▲' : '▼') : '↕'"></span></th>
+                      <th @click="tblSort('tblNotifLog','username')" :class="tblNotifLog.sortCol==='username' ? 'th-sort th-sort-active' : 'th-sort'">Usuario <span class="th-sort-icon" x-text="tblNotifLog.sortCol==='username' ? (tblNotifLog.sortDir==='asc' ? '▲' : '▼') : '↕'"></span>
+                        <div class="th-filter" @click.stop><input type="text" placeholder="Filtrar..." @input="tblFilter('tblNotifLog','username',$event.target.value)" /></div>
+                      </th>
+                      <th @click="tblSort('tblNotifLog','via')" :class="tblNotifLog.sortCol==='via' ? 'th-sort th-sort-active' : 'th-sort'">Via <span class="th-sort-icon" x-text="tblNotifLog.sortCol==='via' ? (tblNotifLog.sortDir==='asc' ? '▲' : '▼') : '↕'"></span>
+                        <div class="th-filter" @click.stop><select @change="tblFilter('tblNotifLog','via',$event.target.value)"><option value="">Todas</option><option value="whatsapp">whatsapp</option><option value="email">email</option></select></div>
+                      </th>
+                      <th>Destino</th>
+                      <th @click="tblSort('tblNotifLog','estado')" :class="tblNotifLog.sortCol==='estado' ? 'th-sort th-sort-active' : 'th-sort'">Estado <span class="th-sort-icon" x-text="tblNotifLog.sortCol==='estado' ? (tblNotifLog.sortDir==='asc' ? '▲' : '▼') : '↕'"></span>
+                        <div class="th-filter" @click.stop><select @change="tblFilter('tblNotifLog','estado',$event.target.value)"><option value="">Todos</option><option value="ok">ok</option><option value="error">error</option></select></div>
+                      </th>
+                      <th>Mensaje</th>
+                    </tr></thead>
+                    <tbody>
+                      <template x-for="l in tblData('tblNotifLog',notifLog).rows" :key="l.id">
+                        <tr>
+                          <td class="text-sm" x-text="l.created_at"></td>
+                          <td x-text="l.username || '-'"></td>
+                          <td><span class="badge" :class="l.via==='whatsapp' ? 'badge-bot' : 'badge-info'" x-text="l.via"></span></td>
+                          <td class="text-sm" x-text="l.destino"></td>
+                          <td><span class="badge" :class="l.estado==='ok' ? 'badge-ok' : 'badge-no'" x-text="l.estado"></span></td>
+                          <td class="text-sm" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;" x-text="l.mensaje"></td>
+                        </tr>
+                      </template>
+                      <tr x-show="notifLog.length===0"><td colspan="6" class="text-center text-sm" style="color:var(--text-faint);">Sin notificaciones enviadas.</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="tbl-pagination">
+                  <span class="tbl-page-info" x-text="'Mostrando ' + tblData('tblNotifLog',notifLog).rows.length + ' de ' + tblData('tblNotifLog',notifLog).total + ' registros'"></span>
+                  <div class="tbl-page-controls">
+                    <select class="tbl-per-page" @change="tblPerPage('tblNotifLog',Number($event.target.value))"><option value="10">10 por pagina</option><option value="25">25 por pagina</option><option value="50">50 por pagina</option><option value="100">100 por pagina</option></select>
+                    <button class="tbl-page-btn" @click="tblPage('tblNotifLog','prev')" :disabled="tblNotifLog.page===1">‹</button>
+                    <span class="tbl-page-info" x-text="tblNotifLog.page + ' / ' + tblData('tblNotifLog',notifLog).totalPages"></span>
+                    <button class="tbl-page-btn" @click="tblPage('tblNotifLog','next')" :disabled="tblNotifLog.page>=tblData('tblNotifLog',notifLog).totalPages">›</button>
+                  </div>
+                </div>
+              </div>
+              </template>
+            </div>
+          </template>
+
+          <!-- ===== MENSAJES MASIVOS ===== -->
+          <template x-if="tab==='masivos'">
+            <div>
+              <div class="flex items-center justify-between mb-6">
+                <h2 class="card-title" style="margin:0;">Mensajes Masivos <span class="text-faint font-normal text-sm">(envío en volumen)</span></h2>
+                <button @click="openNewMasivo()" class="btn-primary btn-sm">+ Agregar mensaje</button>
+              </div>
+              <div class="space-y-4">
+                <template x-if="masivos.length === 0">
+                  <div class="card" style="text-align:center; padding:40px;">
+                    <p class="text-secondary mb-4">No hay mensajes masivos creados.</p>
+                    <button @click="openNewMasivo()" class="btn-primary">Crear mensaje masivo</button>
+                  </div>
+                </template>
+                <template x-for="m in masivos" :key="m.id">
+                  <div class="card">
+                    <div class="flex items-start justify-between">
+                      <div class="flex-1">
+                        <h3 class="font-semibold text-lg" style="margin:0 0 4px;" x-text="m.nombre"></h3>
+                        <p class="text-sm text-secondary mb-2" x-text="(m.mensaje || '').slice(0, 80) + ((m.mensaje || '').length > 80 ? '...' : '')"></p>
+                        <div class="flex flex-wrap gap-x-6 gap-y-1 text-sm text-secondary">
+                          <span><strong>Destino:</strong> <span x-text="m.enviar_a_todos ? 'Todos los contactos' : (m.contactos || []).length + ' contacto(s)'"></span></span>
+                          <span><strong>Estado:</strong> <span class="badge" :class="m.estado==='enviado' ? 'badge-ok' : 'badge-info'" x-text="m.estado"></span></span>
+                          <span x-show="m.estado==='enviado'"><strong>Enviados:</strong> <span x-text="m.enviados + '/' + m.total"></span></span>
+                          <span x-show="m.fallidos > 0"><strong>Fallidos:</strong> <span style="color: var(--danger);" x-text="m.fallidos"></span></span>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2 ml-4">
+                        <button @click="enviarMasivo(m)" :disabled="masivoEnviando" class="btn-primary btn-sm">Enviar</button>
+                        <div class="relative">
+                          <button @click.stop="userMenuOpen === ('masivo-'+m.id) ? userMenuOpen = null : userMenuOpen = ('masivo-'+m.id)" class="btn-ghost btn-sm">Opciones ▾</button>
+                          <template x-if="userMenuOpen === ('masivo-'+m.id)">
+                            <div class="dropdown" @click.outside="userMenuOpen = null">
+                              <button @click="openEditMasivo(m); userMenuOpen = null" class="dropdown-item">Editar</button>
+                              <button @click="deleteMasivo(m); userMenuOpen = null" class="dropdown-item dropdown-item-danger">Eliminar</button>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+              <div x-show="masivoModalOpen" class="modal-overlay" @click.self="closeMasivoModal()">
+                <div class="modal-box" style="max-width: 600px;">
+                  <div class="flex items-center justify-between mb-5">
+                    <h3 class="card-title" style="margin:0;" x-text="masivoEdit ? 'Editar mensaje masivo' : 'Nuevo mensaje masivo'"></h3>
+                    <button @click="closeMasivoModal()" class="btn-ghost btn-sm">✕</button>
+                  </div>
+                  <div class="field"><label class="field-label">Nombre *</label><input x-model="masivoForm.nombre" class="input" placeholder="Ej: Promoción de enero" /></div>
+                  <div class="field"><label class="field-label">Mensaje libre (dentro de ventana 24h)</label><textarea x-model="masivoForm.mensaje" rows="3" class="input" placeholder="Escribe el mensaje..."></textarea></div>
+                  <div class="field">
+                    <label class="field-label">Adjuntar archivo <span class="text-faint font-normal">(PDF, Word o imagen)</span></label>
+                    <input type="file" @change="uploadDocMasivo($event)" accept=".pdf,.docx,.png,.jpg,.jpeg,.webp" style="font-size: 13px;" />
+                    <template x-if="masivoForm.archivo_adjunto">
+                      <div class="flex items-center gap-2 mt-2">
+                        <span class="text-sm" x-text="'📎 ' + masivoForm.archivo_adjunto.name"></span>
+                        <button @click="removeDocMasivo()" class="btn-ghost btn-sm" style="font-size: 11px;">quitar</button>
+                      </div>
+                    </template>
+                  </div>
+                  <div class="form-grid">
+                    <div class="field"><label class="field-label">Template (fuera de 24h)</label><input x-model="masivoForm.template_name" class="input" placeholder="nombre_template" /></div>
+                    <div class="field"><label class="field-label">Idioma</label><input x-model="masivoForm.language" class="input" placeholder="es_MX" /></div>
+                  </div>
+                  <div class="field">
+                    <label class="flex items-center gap-3"><label class="switch"><input type="checkbox" x-model="masivoForm.enviar_a_todos" @change="checkVentanaMasivo()" /><span class="slider"></span></label><span class="text-sm font-semibold">Enviar a todos los contactos</span></label>
+                  </div>
+                  <div class="field" x-show="!masivoForm.enviar_a_todos">
+                    <label class="field-label">Contactos</label>
+                    <input x-model="masivoSearch" @input.debounce.300ms="loadMasivoContactos()" class="input mb-3" placeholder="Buscar contactos..." />
+                    <div style="max-height: 200px; overflow-y: auto;" class="wa-scroll">
+                      <template x-for="c in masivoContactos" :key="c.id">
+                        <label class="flex items-center gap-3 py-2 px-3 rounded-lg" style="cursor: pointer;" :style="masivoForm.contactos.includes(c.id) ? 'background: var(--bg-hover);' : ''">
+                          <input type="checkbox" :checked="masivoForm.contactos.includes(c.id)" @change="toggleMasivoContacto(c.id)" />
+                          <span class="text-sm" x-text="(c.nombre || c.wa_id)"></span>
+                        </label>
+                      </template>
+                    </div>
+                  </div>
+                  <div class="field" x-show="masivoVentana.total > 0">
+                    <p class="field-help">
+                      <strong>Ventana 24h:</strong> <span x-text="mas+masivoVentana.dentro_24h"></span> dentro de ventana, <span x-text="masivoVentana.fuera_24h"></span> fuera de ventana.
+                    </p>
+                  </div>
+                  <div class="flex-actions">
+                    <button @click="saveMasivo()" :disabled="masivoSaving" class="btn-primary"><span x-show="!masivoSaving">Guardar</span><span x-show="masivoSaving">Guardando...</span></button>
+                    <button @click="closeMasivoModal()" class="btn-secondary">Cancelar</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </template>
+
+          </div>
+        </main>
+      </div>
+    </div>
+  </template>
+
+  <!-- Modal de confirmacion -->
+  <div x-show="confirmModal.open" class="modal-overlay" @click.self="confirmCancel()" style="z-index: 60;">
+    <div class="modal-box" style="max-width: 440px;">
+      <div class="flex items-start gap-4 mb-5">
+        <div style="width:44px;height:44px;border-radius:50%;background:#fee2e2;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" style="width:24px;height:24px;color:var(--danger);"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        </div>
+        <div style="flex:1;">
+          <h3 class="card-title" style="margin:0 0 8px;" x-text="confirmModal.title"></h3>
+          <p class="text-sm" style="color:var(--text-soft);line-height:1.5;margin:0;" x-text="confirmModal.message"></p>
+        </div>
+      </div>
+      <div class="flex gap-3">
+        <button @click="confirmYes()" class="btn-danger flex-1">Confirmar</button>
+        <button @click="confirmCancel()" class="btn-secondary">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div x-show="toast" x-transition class="toast">
+    <svg class="toast-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    <span x-text="toast"></span>
+  </div>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

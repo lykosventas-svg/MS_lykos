@@ -1,0 +1,467 @@
+================================================================================
+           MANUAL DE USUARIO DEL SOFTWARE LYKOS CHAT
+================================================================================
+Fecha: 10 de septiembre de 2026
+Versión: 1.0
+Roles: Administrador y Agente
+
+================================================================================
+SECCIÓN 1: INTRODUCCIÓN
+================================================================================
+
+Lykos Chat es un sistema de chatbot para WhatsApp Business que permite:
+- Responder mensajes automáticamente mediante flujos predefinidos (Bot)
+- Generar respuestas con Inteligencia Artificial (IA)
+- Atender conversaciones manualmente desde un panel web (Humano)
+- Gestionar contactos, métricas y usuarios
+
+El sistema tiene dos roles con permisos diferentes:
+
+  ADMINISTRADOR: Acceso completo a todas las funciones
+  AGENTE: Acceso solo a conversaciones y contactos (atención al cliente)
+
+================================================================================
+SECCIÓN 2: ACCESO AL SISTEMA
+================================================================================
+
+2.1 Iniciar sesión
+──────────────────
+  1. Abrir en el navegador: https://[tu-dominio] (o http://localhost:3000 en local)
+  2. Ingresar usuario y contraseña
+  3. Click en "Ingresar"
+
+  Credenciales por defecto (solo desarrollo):
+    Usuario: admin
+    Contraseña: admin123
+
+2.2 Cerrar sesión
+──────────────────
+  - Click en "Salir" en la barra superior derecha
+
+2.3 Navegación
+──────────────
+  - El panel izquierdo (sidebar) contiene todas las opciones
+  - Click en el icono ☰ (hamburguesa) para abrir/cerrar el sidebar
+  - Las opciones se agrupan en:
+      "Configuración": WhatsApp, IA, Flujos del Bot (solo admin)
+      "Operación": Agentes, Contactos, Métricas, Usuarios
+
+
+================================================================================
+SECCIÓN 3: FUNCIONES DEL ADMINISTRADOR
+================================================================================
+
+----------------------------------------------------------------------------
+3.1 PESTAÑA: WHATSAPP (Configuración de credenciales)
+----------------------------------------------------------------------------
+
+Propósito: Configurar la conexión con la WhatsApp Cloud API de Meta.
+
+CAMPOS A COMPLETAR:
+  - Phone Number ID: ID del número de teléfono (de developers.facebook.com)
+  - WABA ID: WhatsApp Business Account ID
+  - Token de acceso: Token permanente de Meta
+    (botón "Mostrar/Ocultar" para ver; dejar vacío para conservar el anterior)
+  - App Secret: Secreto de la app (para validar firma del webhook)
+  - Version Graph API: v19.0 (recomendado)
+  - Verify Token: Token de verificación del webhook
+    (botón "Generar" para autogenerar uno aleatorio)
+  - URL pública del sistema: Solo lectura (se usa para configurar en Meta)
+
+FLUJO DE CONFIGURACIÓN:
+  1. Obtener credenciales de developers.facebook.com:
+     a. Ir a tu App → WhatsApp → API Setup
+     b. Copiar Phone Number ID y WABA ID
+     c. Generar token permanente (System Users → Add token)
+     d. Ir a App Settings → Basic → copiar App Secret
+  2. Ingresar todos los campos en el panel
+  3. Click "Guardar"
+  4. Click "Probar conexión" → debe mostrar "Conexion correcta"
+  5. Configurar webhook en Meta:
+     a. Ir a WhatsApp → Configuration → Webhook
+     b. Callback URL: [URL pública del panel] + /webhook
+     c. Verify Token: el mismo del panel
+     d. Click "Verify and Save"
+     e. Suscribir al campo "messages"
+
+PANEL DE ESTADO (lado derecho):
+  - Webhook verificado: SI/NO
+  - Token válido: SI/NO (según última prueba)
+  - Token guardado: enmascarado (ej: EAAB••••wxyz)
+  - Última prueba: resultado y fecha
+
+----------------------------------------------------------------------------
+3.2 PESTAÑA: INTELIGENCIA ARTIFICIAL (Configuración opcional)
+----------------------------------------------------------------------------
+
+Propósito: Configurar la IA para generar respuestas automáticas.
+
+INTERRUPTOR GLOBAL: "IA habilitada" (ON/OFF)
+  - OFF: el sistema funciona solo con flujos del bot, sin IA
+  - ON: habilita los modos de IA
+
+MODO DE OPERACIÓN (radio buttons):
+  - "IA como respaldo": El bot de flujos responde primero. Si no entiende
+    al usuario, consulta a la IA.
+  - "IA como principal": Toda la conversación la maneja la IA.
+    Los flujos/menús se ignoran.
+
+CAMPOS DE CONEXIÓN:
+  - Base URL: URL del proveedor compatible con OpenAI
+    Ej: https://api.openai.com/v1
+        https://api-ap-southeast-1.modelarts-maas.com/openai/v1
+  - API Key: clave del proveedor (cifrada en BD)
+  - Nombre del modelo: ej: glm-5.2, gpt-4o-mini
+  - Temperature: 0 a 1 (0 = determinista, 1 = creativo). Default: 0.4
+  - Máximo de tokens de respuesta: default 300
+
+PROMPT DE SISTMA:
+  - Texto grande donde describes tu empresa, servicios, precios, horarios,
+    políticas y tono de respuesta. Se envía como system prompt en cada llamada.
+
+INSTRUCCIÓN FIJA (no editable, inyectada automáticamente):
+  "Si el usuario pide hablar con un asesor o humano, responde únicamente
+   con la etiqueta [ESCALAR_HUMANO] y nada más."
+  → El backend interpreta esta etiqueta y activa el handoff a humano.
+
+LÍMITE DE SEGURIDAD:
+  - Máximo de mensajes IA por conversación/día (default: 50)
+  - Al alcanzarse, la conversación vuelve a modo flujos y se notifica.
+
+FLUJO DE CONFIGURACIÓN:
+  1. Activar interruptor "IA habilitada"
+  2. Elegir modo (respaldo o principal)
+  3. Ingresar Base URL, API Key y modelo
+  4. Escribir el prompt de sistema con el contexto del negocio
+  5. Ajustar temperature y límites
+  6. Click "Guardar"
+  7. Click "Probar conexión IA" → debe mostrar la respuesta de prueba
+
+----------------------------------------------------------------------------
+3.3 PESTAÑA: FLUJOS DEL BOT (Configuración de respuestas automáticas)
+----------------------------------------------------------------------------
+
+Propósito: Definir cómo responde el bot cuando no usa IA.
+
+CAMPOS:
+  - Mensaje de bienvenida: se envía al primer mensaje de un contacto nuevo
+  - Mensaje de fallback: cuando el bot no entiende al usuario
+  - Palabras clave (JSON): lista de palabras y sus respuestas
+    Formato: [{"palabra":"precio","respuesta":"Nuestros precios son..."}]
+  - Menu con botones interactivos (JSON): menú principal con botones
+    Formato: {"buttons":[{"id":"btn_precios","title":"Ver precios"},...]}
+  - Árbol de conversación (JSON): respuestas por botón (2 niveles)
+    Formato: {"btn_precios":{"respuesta":"...","submenu":[...]}}
+  - Bot activo (interruptor): activa/desactiva el bot globalmente
+
+FLUJO DE CONFIGURACIÓN:
+  1. Escribir mensaje de bienvenida
+  2. Definir palabras clave comunes (precio, horario, envío, ubicación)
+  3. Crear menú con botones (máximo 3 botones nativos de WhatsApp)
+  4. Definir respuestas para cada botón en el árbol de conversación
+  5. Escribir mensaje de fallback
+  6. Click "Guardar"
+
+EJEMPLO DE PALABRAS CLAVE:
+  [
+    {"palabra":"precio","respuesta":"Nuestros precios van desde $10 hasta $100."},
+    {"palabra":"horario","respuesta":"Atendemos Lun-Vie 9am-6pm."},
+    {"palabra":"envio","respuesta":"Hacemos envíos a todo el país."}
+  ]
+
+----------------------------------------------------------------------------
+3.4 PESTAÑA: AGENTES (Bandeja de entrada y chat)
+----------------------------------------------------------------------------
+
+Propósito: Ver y atender conversaciones de clientes en tiempo real.
+
+FILTROS (parte superior izquierda):
+  - Todas: todas las conversaciones
+  - Sin atender: en estado "pendiente" (esperando agente)
+  - Humano: en modo humano
+  - Bot: en modo bot automático
+  - IA: en modo IA
+  - Mías: asignadas a ti
+
+LISTA DE CONVERSACIONES:
+  - Nombre del contacto (o número)
+  - Icono de modo: 🤖 Bot / 🧠 IA / 👤 Humano
+  - Badge de estado (pendiente si espera agente)
+  - Contador de mensajes sin leer
+
+CHAT (al seleccionar una conversación):
+  - Header: nombre, número, modo actual
+  - Botones de acción:
+    - "Tomar": asignar la conversación a ti (modo humano)
+    - "Devolver al bot": volver a modo bot automático
+    - "Activar IA": cambiar esta conversación a modo IA
+    - Selector "Cambiar modo": bot / IA / humano
+  - Mensajes: burbujas estilo WhatsApp
+    - Entrantes (izquierda, blanco)
+    - Salientes (derecha, color según origen: azul=bot, morado=IA, verde=humano)
+    - Estado de envío: ✓ enviado, ✓✓ entregado, ✓✓ leído, ✗ fallido
+    - Icono de origen: 🤖 bot, 🧠 IA, 👤 humano
+  - Caja de respuesta (abajo):
+    - Solo habilitada en modo humano o IA
+    - En modo bot, muestra mensaje: "La conversación está en modo bot..."
+  - Ventana de 24h:
+    - Si expiró, muestra campo para enviar plantilla (template)
+    - Ingresar nombre de template y click "Enviar plantilla"
+
+FLUJO: Atender un cliente en modo humano
+  1. Seleccionar conversación de la lista
+  2. Click "Tomar" (o cambiar modo a "humano")
+  3. Escribir respuesta en la caja de texto
+  4. Presionar Enter o click "Enviar"
+  5. Para terminar: click "Devolver al bot" o cambiar modo
+
+FLUJO: Escalado automático a humano
+  1. El cliente escribe "asesor" o "humano" → el bot detecta y escala
+  2. O la IA devuelve [ESCALAR_HUMANO] → escala automáticamente
+  3. La conversación cambia a modo "humano" y estado "pendiente"
+  4. El cliente recibe: "Un asesor te atenderá en unos momentos"
+  5. Los agentes reciben notificación (toast + sonido vía Socket.io)
+  6. Un agente toma la conversación y responde manualmente
+
+----------------------------------------------------------------------------
+3.5 PESTAÑA: CONTACTOS (Gestión de contactos)
+----------------------------------------------------------------------------
+
+Propósito: Ver y gestionar los datos de los clientes.
+
+LISTA:
+  - Nombre, número de WhatsApp, etiquetas, notas, fecha de creación
+  - Buscador (arriba): filtra por nombre o número
+
+EDITAR CONTACTO:
+  1. Click "Editar" en la fila del contacto
+  2. Modificar etiquetas (separadas por coma)
+  3. Modificar notas internas
+  4. Click "Guardar"
+
+----------------------------------------------------------------------------
+3.6 PESTAÑA: MÉTRICAS (Dashboard)
+----------------------------------------------------------------------------
+
+Propósito: Ver estadísticas del sistema8 del sistema.
+
+TARJETAS SUPERIORES:
+  - Conversaciones hoy
+  - Mensajes recibidos (hoy)
+  - Mensajes enviados (hoy)
+  - Tokens IA hoy
+
+RESPUESTAS POR ORIGEN (%):
+  - 🤖 Bot: porcentaje de respuestas del bot
+  - 🧠 IA: porcentaje de respuestas de IA
+  - 👤 Humano: porcentaje de respuestas manuales
+
+CONVERSACIONES ACTIVAS POR MODO:
+  - 🤖 Bot: cuántas en modo bot
+  - 🧠 IA: cuántas en modo IA
+  - 👤 Humano: cuántas en modo humano
+  - Pendientes: esperando agente (en rojo si hay)
+
+CONSUMO DE TOKEN IA (últimos 7 días):
+  - Tabla con: día, prompt tokens, completion tokens, total, llamadas
+
+----------------------------------------------------------------------------
+3.7 PESTAÑA: USUARIOS (Gestión de usuarios) — SOLO ADMIN
+----------------------------------------------------------------------------
+
+Propósito: Crear, editar y eliminar usuarios del sistema.
+
+LISTA DE USUARIOS:
+  - Usuario, nombre, rol (admin/agente), estado (activo/inactivo)
+  - Botón "Opciones ▾" por cada usuario con menú desplegable:
+    - Editar: abre modal con usuario, nombre, rol y nueva contraseña
+    - Desactivar/Activar: cambia el estado del usuario
+    - Eliminar: borra el usuario (con confirmación)
+
+CREAR USUARIO:
+  1. Click "+ Crear usuario" (arriba de la tabla)
+  2. Modal se abre con campos: usuario, nombre, contraseña, rol
+  3. Completar y click "Crear"
+
+EDITAR USUARIO:
+  1. Click "Opciones ▾" → "Editar"
+  2. Modal se abre con datos actuales
+  3. Modificar usuario, nombre y/o rol
+  4. "Nueva contraseña (opcional)": dejar vacío para conservar, o escribir nueva
+  5. Click "Guardar cambios"
+
+ELIMINAR USUARIO:
+  1. Click "Opciones ▾" → "Eliminar" (fondo rojo)
+  2. Confirmar en el dialog
+  3. No se puede eliminar: a ti mismo, ni al último administrador
+
+REGLAS DE SEGURIDAD:
+  - No se puede eliminar el último admin activo
+  - No se puede desactivar el último admin activo
+  - No se puede cambiar, cambiar el rol del último admin
+  - No se puede eliminar tu propia cuenta
+
+
+================================================================================
+SECCIÓN 4: FUNCIONES DEL AGENTE
+================================================================================
+
+El rol AGENTE tiene acceso limitado. No ve las opciones de configuración.
+
+----------------------------------------------------------------------------
+4.1 PESTAÑA: AGENTES (Bandeja de entrada)
+----------------------------------------------------------------------------
+
+Igual que el admin (ver Sección 3.4), pero:
+  - Puede ver y atender conversaciones
+  - Puede tomar conversaciones y responder manualmente
+  - Puede devolver al bot o activar IA en un chat
+  - NO puede acceder a configuración de WhatsApp, IA o Bot
+
+FLUJO TÍPICO DEL AGENTE:
+  1. Iniciar sesión
+  2. Ir a "Agentes"
+  3. Revisar filtro "Sin atender" para ver conversaciones pendientes
+  4. Seleccionar una conversación
+  5. Click "Tomar" para asignársela
+  6. Leer el historial de mensajes
+  7. Responder en la caja de texto
+  8. Al terminar: "Devolver al bot" para que el bot siga automáticamente
+
+----------------------------------------------------------------------------
+4.2 PESTAÑA: CONTACTOS
+----------------------------------------------------------------------------
+
+Igual que el admin (ver Sección 3.5):
+  - Ver lista de contactos
+  - Buscar contactos
+  - Editar etiquetas y notas internas
+
+
+================================================================================
+SECCIÓN 5: FLUJOS DE PROCESO PRINCIPALES
+================================================================================
+
+----------------------------------------------------------------------------
+5.1 FLUJO: Cliente escribe por primera vez
+----------------------------------------------------------------------------
+  1. Cliente envía mensaje al número de WhatsApp Business
+  2. Meta envía POST al webhook con el mensaje
+  3. El sistema valida la firma (si App Secret configurado)
+  4. Se crea automáticamente:
+     a. Registro de CONTACTO (nombre + número)
+     b. Registro de CONVERSACIÓN (modo: bot, estado: activa)
+     c. Registro de MENSAJE (dirección: in)
+  5. El orquestador decide la respuesta según el modo:
+     - Bot: busca en flujos/palabras clave → responde bienvenida + menú
+     - IA: llama al LLM con el mensaje → responde
+     - Humano: notifica al agente, no responde automático
+  6. La respuesta se envía vía WhatsApp Cloud API
+  7. Se guarda el mensaje saliente (dirección: out)
+  8. El panel de agentes se actualiza en tiempo real (Socket.io)
+
+----------------------------------------------------------------------------
+5.2 FLUJO: Cliente pide hablar con asesor
+----------------------------------------------------------------------------
+  1. Cliente escribe "asesor", "humano" o similar
+  2. El bot detecta la palabra clave de handoff
+  3. La conversación cambia a modo "humano", estado "pendiente"
+  4. Se envía al cliente: "Un asesor te atenderá en unos momentos"
+  5. Los agentes reciben notificación (toast + sonido)
+  6. Un agente ve la conversación en "Sin atender"
+  7. El agente hace click "Tomar"
+  8. El agente responde manualmente
+  9. Al terminar, click "Devolver al bot"
+
+----------------------------------------------------------------------------
+5.3 FLUJO: IA escala a humano automáticamente
+----------------------------------------------------------------------------
+  1. Cliente escribe algo que la IA interpreta como petición de humano
+  2. La IA devuelve la etiqueta [ESCALAR_HUMANO]
+  3. El orquestador detecta la etiqueta
+  4. Se activa el handoff (igual que el flujo 5.2 desde el paso 3)
+
+----------------------------------------------------------------------------
+5.4 FLUJO: Cambiar modo de una conversación manualmente
+----------------------------------------------------------------------------
+  1. Seleccionar conversación en "Agentes"
+  2. Usar el selector "Cambiar modo..." o los botones:
+     - "Devolver al bot" → modo bot
+     - "Activar IA" → modo IA
+     - Selector → humano
+  3. El cambio aplica inmediatamente
+  4. El siguiente mensaje del cliente se procesa en el nuevo modo
+
+----------------------------------------------------------------------------
+5.5 FLUJO: Ventana de 24 horas expirada
+----------------------------------------------------------------------------
+  1. WhatsApp permite enviar mensajes libres solo 24h después del último
+     mensaje del cliente
+  2. Si expiró, el panel muestra advertencia en el chat
+  3. Para reabrir: escribir nombre de template y click "Enviar plantilla"
+  4. La plantilla reabre la ventana por 24h
+  5. A partir de ahí, se pueden enviar mensajes normales
+
+----------------------------------------------------------------------------
+5.6 FLUJO: Límite de IA alcanzado
+----------------------------------------------------------------------------
+  1. Una conversación en modo IA alcanza el máximo de mensajes/día
+  2. La conversación vuelve automáticamente a modo "bot"
+  3. Se notifica al cliente: "He alcanzado el límite de respuestas..."
+  4. Se activa el handoff a humano
+  5. Se notifica a los agentes en el panel
+
+
+================================================================================
+SECCIÓN 6: ICONOS Y CONVENCIONES
+================================================================================
+
+  🤖 Bot       → Respuesta generada por flujos predefinidos
+  🧠 IA        → Respuesta generada por Inteligencia Artificial
+  👤 Humano    → Respuesta escrita por un agente
+  ✓            → Mensaje enviado
+  ✓✓           → Mensaje entregado/leído
+  ✗            → Mensaje fallido (error de envío)
+  ☰            → Abrir/cerrar sidebar
+  ▾            → Desplegar menú de opciones
+
+
+================================================================================
+SECCIÓN 7: SOLUCIÓN DE PROBLEMAS COMUNES
+================================================================================
+
+PROBLEMA: Los mensajes no llegan al panel
+  → Verificar que el webhook esté configurado en Meta (URL + verify token)
+  → Verificar que la app esté suscrita al campo "messages"
+  → Verificar que el servidor esté corriendo (pm2 status)
+  → Verificar App Secret (si la firma falla, limpiarlo temporalmente)
+  → Verificar que el dominio/URL sea accesible desde internet
+
+PROBLEMA: "Probar conexión" WhatsApp falla
+  → Verificar Phone Number ID y token de acceso
+  → Verificar versión de Graph API
+  → El error se muestra en lenguaje legible en el panel
+
+PROBLEMA: "Probar conexión IA" falla
+  → Verificar Base URL y API Key
+  → Verificar nombre del modelo
+  → El error se muestra en lenguaje legible en el panel
+
+PROBLEMA: El bot no responde
+  → Verificar que el bot esté activo (pestaña Flujos del Bot)
+  → Verificar palabras clave y menús configurados
+  → Si IA en modo respaldo, verificar que la IA esté habilitada
+
+PROBLEMA: No puedo enviar mensaje manual
+  → La conversación debe estar en modo "humano" o "IA"
+  → En modo "bot" la caja de respuesta está deshabilitada
+  → Si la ventana de 24h expiró, usar plantilla
+
+PROBLEMA: Agente no ve opciones de configuración
+  → Es normal: solo el admin ve configuración, métricas y usuarios
+  → El agente solo ve "Agentes" y "Contactos"
+
+
+================================================================================
+                              FIN DEL MANUAL
+================================================================================
