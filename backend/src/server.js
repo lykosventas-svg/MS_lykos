@@ -63,7 +63,7 @@ if (env.NODE_ENV === 'production') {
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", 'https://cdn.tailwindcss.com', 'https://cdn.jsdelivr.net'],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com', 'https://cdn.tailwindcss.com'],
       fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-      imgSrc: ["'self'", 'data:', 'https://lykos.mx'],
+      imgSrc: ["'self'", 'data:'],
       connectSrc: ["'self'", 'wss:', 'ws:'],
     },
   };

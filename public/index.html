@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" type="image/png" href="https://lykos.mx/wp-content/uploads/2020/05/Logotipo-Likos_Mesa-de-trabajo-1-e1590453401721.png" />
+  <link rel="icon" type="image/png" href="/img/Logotipo-header.png" />
   <title>Lykos Chat — Panel</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -23,7 +23,7 @@
     <div class="min-h-screen flex items-center justify-center px-4" style="background: #ffffff;">
       <div class="login-wrap">
         <div class="text-center">
-          <img src="https://lykos.mx/wp-content/uploads/2020/04/logo-lykos.png" alt="Lykos" class="login-logo" />
+          <img src="/img/Logotipo-Inicio de sesión.png" alt="Lykos" class="login-logo" />
           <p class="login-subtitle">Panel de administración para WhatsApp</p>
         </div>
         <form @submit.prevent="doLogin()" class="login-form-layout">
@@ -60,7 +60,7 @@
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/></svg>
           </button>
           <div class="navbar-brand" @click="changeTab('inicio')" style="cursor: pointer;">
-            <img src="https://lykos.mx/wp-content/uploads/2020/04/cropped-Logotipo-Lykos.png" alt="Lykos" style="height: 32px; width: auto; object-fit: contain;" />
+            <img src="/img/Logotipo-header.png" alt="Lykos" style="height: 32px; width: auto; object-fit: contain;" />
             <span>LYKOS CHAT</span>
           </div>
         </div>
@@ -165,7 +165,7 @@
               <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="card home-action-card">
                   <div class="home-action-content">
-                    <img src="https://lykos.mx/wp-content/uploads/2026/09/icono-de-bot.webp" alt="Icono bot" class="home-profile-icon">
+                    <img src="/img/icono_bot.png" alt="Icono bot" class="home-profile-icon">
                     <div>
                       <h2 class="card-title" style="margin:0 0 6px;">¿Necesitas ayuda o apoyo?</h2>
                       <p class="text-sm" style="color:var(--text-soft);margin:0;">Inicia el asistente de IA para automatizar procesos, recibir ayuda y resolver dudas de soporte tecnico.</p>
@@ -447,7 +447,7 @@
                   <label class="radio-card" :class="bot.modo_inicio==='bot' ? 'radio-active' : ''" @click="setModoInicio('bot')">
                     <input type="radio" x-model="bot.modo_inicio" value="bot" class="hidden" />
                     <div style="display:flex;align-items:center;gap:12px;">
-                      <img src="https://lykos.mx/wp-content/uploads/2026/09/icono-de-bot.webp" alt="Bot" style="width:56px;height:56px;flex-shrink:0;">
+                      <img src="/img/icono_bot.png" alt="Bot" style="width:56px;height:56px;flex-shrink:0;">
                       <div>
                         <span class="font-semibold text-sm">BOT</span>
                         <span class="field-help">Las nuevas conversaciones empiezan con flujos del bot.</span>
@@ -457,7 +457,7 @@
                   <label class="radio-card" :class="bot.modo_inicio==='ia' ? 'radio-active' : ''" @click="setModoInicio('ia')">
                     <input type="radio" x-model="bot.modo_inicio" value="ia" class="hidden" />
                     <div style="display:flex;align-items:center;gap:12px;">
-                      <img src="https://lykos.mx/wp-content/uploads/2026/09/icono_IA.webp" alt="IA" style="width:56px;height:56px;flex-shrink:0;">
+                      <img src="/img/icono_IA.webp" alt="IA" style="width:56px;height:56px;flex-shrink:0;">
                       <div>
                         <span class="font-semibold text-sm">IA</span>
                         <span class="field-help">Las nuevas conversaciones empiezan con inteligencia artificial.</span>
