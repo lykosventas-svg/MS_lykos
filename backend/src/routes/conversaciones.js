@@ -70,6 +70,7 @@ router.get('/:id', requireAuth, (req, res) => {
   if (!conv) return res.status(404).json({ error: 'Conversacion no encontrada.' });
   const contacto = contactoModel.findById(conv.contacto_id);
   const mensajes = mensajeModel.listByConversacion(conv.id, 500);
+  mensajeModel.marcarLeidos(conv.id);
   const mensajesParsed = mensajes.map(m => {
     let contenido;
     try { contenido = JSON.parse(m.contenido); } catch (_) { contenido = { text: m.contenido }; }

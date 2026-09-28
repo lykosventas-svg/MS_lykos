@@ -591,6 +591,8 @@ function app() {
       this.selectedConvId = id;
       try {
         this.selectedConv = await api.getConv(id);
+        const c = this.convs.find(c => Number(c.id) === Number(id));
+        if (c) c.sin_leer = 0;
         this.ventanaExpirada = this.selectedConv.conversacion?.ventana_24h_hasta &&
           new Date(this.selectedConv.conversacion.ventana_24h_hasta) < new Date();
         this.$nextTick(() => { if (this.$refs.chatScroll) this.$refs.chatScroll.scrollTop = this.$refs.chatScroll.scrollHeight; });
