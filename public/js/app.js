@@ -739,6 +739,16 @@ function app() {
       this.msgContextMenu = { open: false, messageId: null, x: 0, y: 0 };
     },
 
+    // --- Delete (frontend only) ---
+    deleteMessageLocal(messageId) {
+      this.closeMsgContextMenu();
+      if (!this.selectedConv?.mensajes) return;
+      const idx = this.selectedConv.mensajes.findIndex(m => m.id === messageId);
+      if (idx === -1) return;
+      this.selectedConv.mensajes.splice(idx, 1);
+      this.showToast('Mensaje eliminado');
+    },
+
     // --- Reply ---
     startReply(m) {
       this.closeMsgContextMenu();
