@@ -29,15 +29,26 @@ router.get('/media/:mensajeId', async (req, res) => {
     if (!msg) return res.status(404).json({ error: 'Mensaje no encontrado.' });
     let contenido;
     try { contenido = JSON.parse(msg.contenido); } catch (_) { return res.status(400).json({ error: 'Contenido invalido.' }); }
-    const mediaUrl = contenido.url || contenido.id;
-    if (!mediaUrl) return res.status(404).json({ error: 'Sin URL de media.' });
 
     // Si es URL local (uploads), redirigir.
-    if (mediaUrl.startsWith('/uploads/')) return res.redirect(mediaUrl);
+    if (contenido.url && contenido.url.startsWith('/uploads/')) return res.redirect(contenido.url);
 
-    // Es URL de Meta: descargar con token y streamear.
     const creds = whatsappService.getCredentials();
-    const resp = await axios.get(mediaUrl, {
+    let downloadUrl = contenido.url;
+
+    // Si hay media id, obtener URL fresca via Graph API (las URLs de Meta expiran).
+    if (contenido.id) {
+      const metaResp = await axios.get(`https://graph.facebook.com/${creds.version}/${contenido.id}`, {
+        headers: { Authorization: `Bearer ${creds.token}` },
+        timeout: 15000,
+      });
+      downloadUrl = metaResp.data.url;
+    }
+
+    if (!downloadUrl) return res.status(404).json({ error: 'Sin URL de media.' });
+
+    // Descargar y streamear.
+    const resp = await axios.get(downloadUrl, {
       headers: { Authorization: `Bearer ${creds.token}` },
       responseType: 'stream',
       timeout: 30000,

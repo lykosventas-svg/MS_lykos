@@ -65,12 +65,14 @@ function parseMessage(msg) {
     case 'video':
       contenido.caption = msg.video?.caption || '';
       contenido.url = msg.video?.url || '';
+      contenido.id = msg.video?.id || '';
       texto = contenido.caption || '[video]';
       break;
     case 'document':
       contenido.caption = msg.document?.caption || '';
       contenido.filename = msg.document?.filename || '';
       contenido.url = msg.document?.url || '';
+      contenido.id = msg.document?.id || '';
       texto = contenido.filename || contenido.caption || '[documento]';
       break;
     case 'location':
