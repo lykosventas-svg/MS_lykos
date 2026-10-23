@@ -34,6 +34,8 @@ router.put('/global', requireAuth, requireAdmin, (req, res) => {
     smtp_pass: f.smtp_pass,
     smtp_from: f.smtp_from,
     smtp_activado: f.smtp_activado,
+    template_notificacion: f.template_notificacion,
+    template_notificacion_lang: f.template_notificacion_lang,
   });
   res.json({ ok: true, config: result });
 });

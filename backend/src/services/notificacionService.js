@@ -23,7 +23,8 @@ function construirMensaje(userConfig, globalConfig, contactoNombre, mensajeTexto
 }
 
 // --- Envia notificacion por WhatsApp personal con boton "Enterado" ---
-async function enviarWhatsApp(numero, mensaje, usuarioId) {
+// templateConfig: { name, lang } opcional para fallback fuera de ventana 24h.
+async function enviarWhatsApp(numero, mensaje, usuarioId, templateConfig = null) {
   if (!numero) return { ok: false, error: 'Sin numero' };
   try {
     // Enviar con boton interactivo "Enterado" para detener notificaciones.
@@ -37,6 +38,19 @@ async function enviarWhatsApp(numero, mensaje, usuarioId) {
       await whatsappService.sendText(numero, mensaje);
       return { ok: true };
     } catch (e2) {
+      // Si texto tambien falla (ventana 24h expirada), intentar con template.
+      if (templateConfig && templateConfig.name) {
+        try {
+          const components = [{
+            type: 'body',
+            parameters: [{ type: 'text', text: mensaje }],
+          }];
+          await whatsappService.sendTemplate(numero, templateConfig.name, templateConfig.lang || 'es_MX', components);
+          return { ok: true, via: 'template' };
+        } catch (e3) {
+          return { ok: false, error: e3.message };
+        }
+      }
       return { ok: false, error: e2.message };
     }
   }
@@ -77,19 +91,23 @@ async function notificarNuevoMensaje(contactoNombre, mensajeTexto) {
   const activos = notifModel.getActivos();
   if (activos.length === 0) return;
 
+  const templateConfig = globalConfig.template_notificacion
+    ? { name: globalConfig.template_notificacion, lang: globalConfig.template_notificacion_lang || 'es_MX' }
+    : null;
+
   for (const user of activos) {
     const msg = construirMensaje(user, globalConfig, contactoNombre, mensajeTexto);
     const ctx = `Nuevo mensaje de ${contactoNombre || 'cliente'}`;
 
     // WhatsApp
     if (user.whatsapp_personal) {
-      const r = await enviarWhatsApp(user.whatsapp_personal, msg, user.usuario_id);
+      const r = await enviarWhatsApp(user.whatsapp_personal, msg, user.usuario_id, templateConfig);
       notifModel.logEnvio({
         usuario_id: user.usuario_id, via: 'whatsapp',
         destino: user.whatsapp_personal, mensaje: msg,
         estado: r.ok ? 'ok' : 'error', error: r.error,
       });
-      if (r.ok) logger.info(`Notif WA enviada a ${user.username}`, null, 'sistema', false);
+      if (r.ok) logger.info(`Notif WA enviada a ${user.username}${r.via === 'template' ? ' (via template)' : ''}`, null, 'sistema', false);
     }
 
     // Email
@@ -115,10 +133,14 @@ async function chequearRecurrencia() {
   const pendientes = notifModel.getPendientesRecurrencia();
   if (pendientes.length === 0) return;
 
+  const templateConfig = globalConfig.template_notificacion
+    ? { name: globalConfig.template_notificacion, lang: globalConfig.template_notificacion_lang || 'es_MX' }
+    : null;
+
   for (const user of pendientes) {
     const msg = construirMensaje(user, globalConfig);
     if (user.whatsapp_personal) {
-      const r = await enviarWhatsApp(user.whatsapp_personal, msg, user.usuario_id);
+      const r = await enviarWhatsApp(user.whatsapp_personal, msg, user.usuario_id, templateConfig);
       notifModel.logEnvio({
         usuario_id: user.usuario_id, via: 'whatsapp',
         destino: user.whatsapp_personal, mensaje: msg,

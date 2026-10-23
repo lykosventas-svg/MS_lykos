@@ -128,13 +128,18 @@ async function sendList(toWaId, bodyText, buttonLabel, rows) {
 }
 
 // Envia una plantilla (para reabrir fuera de ventana 24h).
-async function sendTemplate(toWaId, templateName, languageCode = 'es_MX') {
+// components: parametros opcionales para variables del template (ej: [{ type: 'body', parameters: [{ type: 'text', text: 'valor' }] }])
+async function sendTemplate(toWaId, templateName, languageCode = 'es_MX', components = null) {
+  const template = { name: templateName, language: { code: languageCode } };
+  if (components && Array.isArray(components) && components.length > 0) {
+    template.components = components;
+  }
   return sendMessage({
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
     to: toWaId,
     type: 'template',
-    template: { name: templateName, language: { code: languageCode } },
+    template,
   });
 }
 

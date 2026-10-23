@@ -106,7 +106,7 @@ function app() {
     showEditPass: false,
 
     // Notificaciones
-    notifGlobal: { smtp_activado: false, smtp_port: 587 },
+    notifGlobal: { smtp_activado: false, smtp_port: 587, template_notificacion: '', template_notificacion_lang: 'es_MX' },
     notifUsuarios: [],
     notifLog: [],
     notifSaving: false,

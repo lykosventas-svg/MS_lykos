@@ -31,6 +31,8 @@ function getGlobalFrontend() {
     smtp_pass_masked: raw.smtp_pass ? mask(raw.smtp_pass) : '',
     smtp_from: raw.smtp_from || '',
     smtp_activado: !!raw.smtp_activado,
+    template_notificacion: raw.template_notificacion || '',
+    template_notificacion_lang: raw.template_notificacion_lang || 'es_MX',
   };
 }
 
@@ -50,6 +52,8 @@ function saveGlobal(fields) {
       smtp_pass_enc   = ?,
       smtp_from       = COALESCE(?, smtp_from),
       smtp_activado   = COALESCE(?, smtp_activado),
+      template_notificacion     = COALESCE(?, template_notificacion),
+      template_notificacion_lang = COALESCE(?, template_notificacion_lang),
       updated_at      = datetime('now')
     WHERE id = 1
   `).run(
@@ -60,7 +64,9 @@ function saveGlobal(fields) {
     fields.smtp_user ?? null,
     passEnc,
     fields.smtp_from ?? null,
-    fields.smtp_activado === undefined ? null : (fields.smtp_activado ? 1 : 0)
+    fields.smtp_activado === undefined ? null : (fields.smtp_activado ? 1 : 0),
+    fields.template_notificacion ?? null,
+    fields.template_notificacion_lang ?? null
   );
   return getGlobalFrontend();
 }
