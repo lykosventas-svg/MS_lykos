@@ -22,38 +22,61 @@ function construirMensaje(userConfig, globalConfig, contactoNombre, mensajeTexto
     .replace(/\{preview\}/g, (mensajeTexto || '').slice(0, 50));
 }
 
+// --- Verifica si un numero esta dentro de la ventana de 24h ---
+// Busca el contacto por wa_id, obtiene su conversacion y compara ventana_24h_hasta con ahora.
+function dentroDeVentana24h(waId) {
+  try {
+    const contactoModel = require('../models/contacto');
+    const conversacionModel = require('../models/conversacion');
+    const contacto = contactoModel.findByWaId(waId);
+    if (!contacto || contacto.deleted === 1) return false;
+    const conv = conversacionModel.findByContacto(contacto.id);
+    if (!conv || !conv.ventana_24h_hasta) return false;
+    return new Date(conv.ventana_24h_hasta + 'Z') > new Date();
+  } catch (_) {
+    return false;
+  }
+}
+
 // --- Envia notificacion por WhatsApp personal con boton "Enterado" ---
-// templateConfig: { name, lang } opcional para fallback fuera de ventana 24h.
+// templateConfig: { name, lang } opcional para envio fuera de ventana 24h.
 async function enviarWhatsApp(numero, mensaje, usuarioId, templateConfig = null) {
   if (!numero) return { ok: false, error: 'Sin numero' };
-  try {
-    // Enviar con boton interactivo "Enterado" para detener notificaciones.
-    await whatsappService.sendButtons(numero, mensaje, [
-      { id: 'enterado_' + usuarioId, title: 'Enterado' },
-    ]);
-    return { ok: true };
-  } catch (e) {
-    // Si falla el boton (ej. fuera de ventana 24h), intentar texto plano.
+
+  const dentro24h = dentroDeVentana24h(numero);
+
+  if (dentro24h) {
+    // Dentro de ventana 24h: intentar buttons, luego text.
     try {
-      await whatsappService.sendText(numero, mensaje);
+      await whatsappService.sendButtons(numero, mensaje, [
+        { id: 'enterado_' + usuarioId, title: 'Enterado' },
+      ]);
       return { ok: true };
-    } catch (e2) {
-      // Si texto tambien falla (ventana 24h expirada), intentar con template.
-      if (templateConfig && templateConfig.name) {
-        try {
-          const components = [{
-            type: 'body',
-            parameters: [{ type: 'text', text: mensaje }],
-          }];
-          await whatsappService.sendTemplate(numero, templateConfig.name, templateConfig.lang || 'es_MX', components);
-          return { ok: true, via: 'template' };
-        } catch (e3) {
-          return { ok: false, error: e3.message };
-        }
+    } catch (e) {
+      try {
+        await whatsappService.sendText(numero, mensaje);
+        return { ok: true };
+      } catch (e2) {
+        // Buttons y text fallaron, pasar a template abajo.
       }
-      return { ok: false, error: e2.message };
     }
   }
+
+  // Fuera de ventana 24h (o buttons/text fallaron): usar template.
+  if (templateConfig && templateConfig.name) {
+    try {
+      const components = [{
+        type: 'body',
+        parameters: [{ type: 'text', text: mensaje }],
+      }];
+      await whatsappService.sendTemplate(numero, templateConfig.name, templateConfig.lang || 'es_MX', components);
+      return { ok: true, via: 'template' };
+    } catch (e3) {
+      return { ok: false, error: e3.message };
+    }
+  }
+
+  return { ok: false, error: dentro24h ? 'Buttons/text/template fallaron' : 'Fuera de ventana 24h y sin template configurado' };
 }
 
 // --- Envia notificacion por email con link "Enterado" ---
