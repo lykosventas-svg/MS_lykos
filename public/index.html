@@ -1143,7 +1143,7 @@
                   <div class="field"><label class="field-label">Nombre de la plantilla</label><input x-model="notifGlobal.template_notificacion" class="input" placeholder="nueva_notificacion" /><p class="field-help">Plantilla aprobada en Meta WhatsApp Manager. Se usa cuando el usuario esta fuera de la ventana de 24h y no puede recibir mensajes libres.</p></div>
                   <div class="field"><label class="field-label">Idioma de la plantilla</label><input x-model="notifGlobal.template_notificacion_lang" class="input" placeholder="es_MX" /><p class="field-help">Codigo de idioma (ej: es_MX, en_US).</p></div>
                 </div>
-                <div class="flex-actions"><button @click="saveNotifGlobal()" :disabled="notifSaving" class="btn-primary"><span x-show="!notifSaving">Guardar</span><span x-show="notifSaving">Guardando...</span></button></div>
+                <div class="flex-actions"><button @click="saveNotifGlobal()" :disabled="notifSaving" class="btn-primary"><span x-show="!notifSaving">Guardar</span><span x-show="notifSaving">Guardando...</span></button><button @click="verificarTemplateNotif()" :disabled="notifVerifying" class="btn-secondary"><span x-show="!notifVerifying">Verificar template</span><span x-show="notifVerifying">Verificando...</span></button></div>
               </div>
               </template>
 

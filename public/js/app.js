@@ -110,6 +110,7 @@ function app() {
     notifUsuarios: [],
     notifLog: [],
     notifSaving: false,
+    notifVerifying: false,
 
     // Mensajes Masivos
     masivos: [],
@@ -954,6 +955,21 @@ function app() {
       try { const r = await api.saveNotifGlobal(this.notifGlobal); this.notifGlobal = { ...r.config, smtp_pass: '' }; this.showToast('Configuracion guardada'); }
       catch (e) { this.showToast('Error: ' + e.message); }
       finally { this.notifSaving = false; }
+    },
+    async verificarTemplateNotif() {
+      this.notifVerifying = true;
+      try {
+        const cfg = await api.getNotifGlobal();
+        if (cfg.template_notificacion === undefined || cfg.template_notificacion_lang === undefined) {
+          this.showToast('La migracion no se aplico. Reinicia el servidor para aplicar los cambios.', 'error');
+        } else if (cfg.template_notificacion && cfg.template_notificacion.trim() !== '') {
+          this.showToast('Template guardado OK: ' + cfg.template_notificacion + ' (' + (cfg.template_notificacion_lang || 'es_MX') + ')', 'ok');
+        } else {
+          this.showToast('No hay template guardado en la BD. Ingresa el nombre y guarda.', 'error');
+        }
+      }
+      catch (e) { this.showToast('Error al verificar: ' + e.message, 'error'); }
+      finally { this.notifVerifying = false; }
     },
     async saveNotifUsuario(u) {
       try {
