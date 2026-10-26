@@ -197,10 +197,22 @@ function listLog(limit = 50) {
   `).all(limit);
 }
 
+// Devuelve la config de notificaciones de un usuario por su whatsapp_personal
+function findByWhatsAppPersonal(waId) {
+  const db = getDb();
+  return db.prepare(`
+    SELECT nc.*, u.username, u.nombre
+    FROM notificaciones_config nc
+    JOIN usuarios u ON u.id = nc.usuario_id
+    WHERE nc.whatsapp_personal = ? AND nc.activado = 1 AND u.activo = 1
+  `).get(waId) || null;
+}
+
 module.exports = {
   getGlobalRaw, getGlobalFrontend, saveGlobal,
   getByUsuario, listAll, saveUsuario,
   detenerRecurrencia, reactivarRecurrencia, setUltimoEnvio,
   getPendientesRecurrencia, getActivos,
+  findByWhatsAppPersonal,
   logEnvio, listLog,
 };

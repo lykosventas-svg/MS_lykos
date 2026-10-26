@@ -243,6 +243,24 @@ async function procesarMensajes(value) {
       continue; // no procesar mas este mensaje (no es de un cliente del negocio).
     }
 
+    // Detectar "Enterado" por titulo de boton (templates) o texto plano.
+    // Solo aplica si el remitente es un empleado con notificaciones activas.
+    const esEnteradoPorTitulo = tipo === 'interactive' && contenido.title && contenido.title.toLowerCase().trim() === 'enterado';
+    const esEnteradoPorTexto = tipo === 'text' && texto.toLowerCase().trim() === 'enterado';
+    if (esEnteradoPorTitulo || esEnteradoPorTexto) {
+      try {
+        const notifModel = require('../models/notificacionModel');
+        const userNotif = notifModel.findByWhatsAppPersonal(waId);
+        if (userNotif) {
+          notifModel.detenerRecurrencia(userNotif.usuario_id);
+          notifModel.logEnvio({ usuario_id: userNotif.usuario_id, via: 'whatsapp', destino: waId, mensaje: 'Notificaciones detenidas por Enterado (template/texto)', estado: 'ok' });
+          logger.info(`Notificaciones detenidas por Enterado de usuario ${userNotif.username} (${waId})`, null, 'sistema', false);
+          try { await require('./whatsappService').sendText(waId, 'Has sido dado de enterado. No recibiras mas notificaciones recurrentes.'); } catch (_) {}
+          continue; // no procesar mas este mensaje (es un empleado, no un cliente).
+        }
+      } catch (_) {}
+    }
+
     // Guardar mensaje entrante.
     mensajeModel.insert({
       conversacion_id: conv.id,

@@ -64,15 +64,29 @@ async function enviarWhatsApp(numero, mensaje, usuarioId, templateConfig = null)
 
   // Fuera de ventana 24h (o buttons/text fallaron): usar template.
   if (templateConfig && templateConfig.name) {
+    const tmplName = templateConfig.name;
+    const tmplLang = templateConfig.lang || 'es_MX';
+
+    // Estrategia 1: variable en body ({{1}} en body)
     try {
-      const components = [{
-        type: 'body',
-        parameters: [{ type: 'text', text: mensaje }],
-      }];
-      await whatsappService.sendTemplate(numero, templateConfig.name, templateConfig.lang || 'es_MX', components);
+      const components = [{ type: 'body', parameters: [{ type: 'text', text: mensaje }] }];
+      await whatsappService.sendTemplate(numero, tmplName, tmplLang, components);
       return { ok: true, via: 'template' };
-    } catch (e3) {
-      return { ok: false, error: e3.message };
+    } catch (eBody) {
+      // Estrategia 2: variable en header ({{1}} en header)
+      try {
+        const components = [{ type: 'header', parameters: [{ type: 'text', text: mensaje }] }];
+        await whatsappService.sendTemplate(numero, tmplName, tmplLang, components);
+        return { ok: true, via: 'template' };
+      } catch (eHeader) {
+        // Estrategia 3: sin variables (texto fijo)
+        try {
+          await whatsappService.sendTemplate(numero, tmplName, tmplLang);
+          return { ok: true, via: 'template' };
+        } catch (ePlain) {
+          return { ok: false, error: ePlain.message };
+        }
+      }
     }
   }
 
